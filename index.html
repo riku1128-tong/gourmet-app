@@ -36,6 +36,7 @@
   .card .ttl .dist{font-size:14px;font-weight:700;color:var(--accent);white-space:nowrap}
   .card .dish{display:flex;gap:10px;align-items:flex-start;font-size:14px;font-weight:500;line-height:1.45}
   .card .dish .tag{flex-shrink:0;font-size:11px;font-weight:700;color:#B8431F;background:#FBEAE3;padding:3px 8px;border-radius:8px;margin-top:2px}
+  .card .meta .like{color:var(--fav);background:#E9F3EE;font-weight:700;padding:2px 8px;border-radius:8px}
   .card .meta{display:flex;gap:12px;flex-wrap:wrap;font-size:12.5px;color:var(--mute)}
   .card .meta a{color:var(--ink);font-weight:500}
   .stamp{position:absolute;top:18px;padding:6px 12px;border:3px solid;border-radius:10px;font-size:18px;font-weight:700;opacity:0;transform:rotate(-12deg);background:rgba(255,255,255,.9)}
@@ -78,6 +79,11 @@
   dialog .in{padding:20px;display:flex;flex-direction:column;gap:14px}
   .toast{position:fixed;left:50%;bottom:110px;transform:translateX(-50%);background:var(--ink);color:#fff;font-size:13px;padding:10px 16px;border-radius:20px;opacity:0;transition:opacity .2s;pointer-events:none;z-index:9}
   .toast.on{opacity:1}
+  .reasons{position:fixed;left:50%;bottom:calc(92px + env(safe-area-inset-bottom));transform:translate(-50%,12px);width:min(448px,calc(100% - 32px));background:#fff;border:1px solid var(--line);border-radius:18px;box-shadow:0 10px 28px rgba(31,26,23,.16);padding:12px 14px;display:flex;flex-direction:column;gap:8px;opacity:0;pointer-events:none;transition:opacity .2s,transform .2s;z-index:9}
+  .reasons.on{opacity:1;pointer-events:auto;transform:translate(-50%,0)}
+  .reasons span{font-size:12px;font-weight:700;color:var(--mute)}
+  .reasons .rbtns{display:flex;gap:6px}
+  .reasons .rbtns button{flex:1;height:40px;border-radius:20px;border:1px solid #D9CFC2;background:#fff;color:var(--ink);font-size:12px;font-weight:700;cursor:pointer;white-space:nowrap}
 </style>
 </head>
 <body>
@@ -132,6 +138,7 @@
   <button class="primary" id="btnApply">この場所で探す</button>
 </div></dialog>
 <div class="toast" id="toast"></div>
+<div class="reasons" id="reasons" role="group" aria-label="削除の理由"><span>削除しました。理由を選ぶと「おまかせ」が好みを学習します</span><div class="rbtns"></div></div>
 
 <script>
 // ---------- 状態 ----------
@@ -217,20 +224,65 @@ async function setCenter(c, name, reverse) {
 
 // ---------- 検索（Google Places / ホットペッパー） ----------
 async function search() {
-  S.results = []; S.shown = PAGE; renderDeck(true);
+  restoreExpired(); S.results = []; S.shown = PAGE; renderDeck(true);
   const gen = GENRES.find(g => g.label === S.genre);
   try {
     S.results = S.settings.source === 'hotpepper' ? await searchHotPepper(gen) : await searchGoogle(gen);
   } catch (e) { console.error(e); toast('検索に失敗: ' + e.message); }
   S.results.sort((a, b) => a.dist - b.dist);
-  if (S.genre === 'おまかせ') S.results = bucketShuffle(S.results, 500); // 近い順は保ちつつ帯内はランダムに
+  if (S.genre === 'おまかせ') { buildTaste(); S.results = rankOmakase(S.results); } // 近さ＋好み＋乱数で並べ替え
   rebuildQueue(); renderDeck();
 }
-// 距離順の配列を band(m) ごとの帯に分け、帯の中だけシャッフルする
-function bucketShuffle(sorted, band) {
-  const out = []; let bucket = [], edge = band;
-  for (const it of sorted) { if (it.dist >= edge) { out.push(...shuffle(bucket)); bucket = []; while (it.dist >= edge) edge += band; } bucket.push(it); }
-  return out.concat(shuffle(bucket));
+
+// ---------- 好みの学習（お気に入り／削除の履歴から都度計算。別データは持たない） ----------
+const REASONS = {
+  high: { label: '高い' }, far: { label: '遠い' },
+  mood: { label: '今の気分じゃない', days: 7 }, // 7 日後に自動復旧
+  none: { label: '興味なし' }
+};
+const DIST_BAND = (m) => m < 300 ? 'near' : m < 700 ? 'mid' : 'far';
+const FAV_W = { genre: 1, price: 0.5, dist: 0.3 };
+const DEL_W = { high: { genre: -0.3, price: -1, dist: 0 }, far: { genre: 0, price: 0, dist: -1 }, mood: { genre: -0.2, price: 0, dist: 0 }, none: { genre: -0.7, price: -0.3, dist: 0 } };
+let TASTE = { genre: {}, price: {}, dist: {}, n: 0 };
+function buildTaste() {
+  const t = { genre: {}, price: {}, dist: {}, n: 0 };
+  const add = (it, w) => {
+    const key = { genre: it.genre, price: /不明/.test(it.price) ? null : it.price, dist: DIST_BAND(it.dist) };
+    for (const f of ['genre', 'price', 'dist']) if (w[f] && key[f]) t[f][key[f]] = (t[f][key[f]] || 0) + w[f];
+    t.n++;
+  };
+  S.favs.forEach(it => add(it, FAV_W));
+  S.deleted.forEach(it => add(it, DEL_W[it.reason] || DEL_W.none));
+  TASTE = t; return t;
+}
+// -1（苦手）〜 +1（好み）。履歴が無ければ 0
+function tasteScore(it) {
+  if (!TASTE.n) return 0;
+  const s = (TASTE.genre[it.genre] || 0) + (TASTE.price[it.price] || 0) + (TASTE.dist[DIST_BAND(it.dist)] || 0);
+  return Math.tanh(s / 2);
+}
+const isLiked = (it) => TASTE.n >= 3 && tasteScore(it) >= 0.45;
+// おまかせの並び: 近さ 0.5 ＋ 好み 0.5 ＋ 乱数 0.3。履歴が無いときは「近い順＋ランダム」と同じ挙動になる
+function rankOmakase(list) {
+  return list.map(it => ({ it, s: 0.5 * (1 - Math.min(1, it.dist / S.radius)) + 0.5 * tasteScore(it) + Math.random() * 0.3 }))
+    .sort((a, b) => b.s - a.s).map(x => x.it);
+}
+// 「今の気分じゃない」の期限切れを削除管理から自動で外す（＝再び提案される）
+function restoreExpired() {
+  const now = Date.now(), keep = S.deleted.filter(x => !(x.expires && x.expires <= now));
+  if (keep.length !== S.deleted.length) { S.deleted = keep; save('deleted', S.deleted); }
+}
+let reasonTimer = null;
+function askReason(id) {
+  const box = $('#reasons'), wrap = box.querySelector('.rbtns'); wrap.innerHTML = '';
+  Object.entries(REASONS).forEach(([k, r]) => { const b = document.createElement('button'); b.type = 'button'; b.textContent = r.label; b.onclick = () => { setReason(id, k); hideReasons(); }; wrap.appendChild(b); });
+  box.classList.add('on'); clearTimeout(reasonTimer); reasonTimer = setTimeout(hideReasons, 5000);
+}
+function hideReasons() { $('#reasons').classList.remove('on'); }
+function setReason(id, k) {
+  const it = S.deleted.find(x => x.id === id); if (!it) return;
+  it.reason = k; it.expires = REASONS[k].days ? it.at + REASONS[k].days * 864e5 : null; save('deleted', S.deleted);
+  buildTaste(); renderLists(); toast(k === 'mood' ? '1週間後に自動で復旧します' : '好みに反映しました');
 }
 // 「おまかせ」で追加するランダムタイプの候補（Places の Table A に存在する飲食系タイプ）
 const OMAKASE_TYPES = ['japanese_restaurant', 'ramen_restaurant', 'italian_restaurant', 'sushi_restaurant', 'cafe', 'korean_restaurant', 'chinese_restaurant', 'barbecue_restaurant', 'indian_restaurant', 'french_restaurant', 'thai_restaurant', 'hamburger_restaurant', 'pizza_restaurant', 'seafood_restaurant', 'steak_house', 'bakery', 'vietnamese_restaurant', 'mexican_restaurant'];
@@ -289,6 +341,7 @@ async function searchHotPepper(gen) {
   })).filter(x => x.dist <= S.radius);
 }
 function rebuildQueue() {
+  buildTaste();
   const hide = new Set([...S.favs, ...S.deleted].map(x => x.id));
   S.queue = S.results.filter(r => !hide.has(r.id));
 }
@@ -330,7 +383,7 @@ function cardEl(it) {
     <div class="body">
       <div class="ttl"><b></b><span class="dist">${fmtDist(it.dist)}</span></div>
       <div class="dish"><span class="tag">${it.dishLabel}</span><span class="dtext"></span></div>
-      <div class="meta"><span>予算 ${it.price}</span><span>徒歩 約${walk(it.dist)}分</span>${it.rating ? `<span>★${it.rating}</span>` : ''}${it.hours ? `<span>${it.hours}</span>` : ''}${it.url ? `<a href="${it.url}" target="_blank" rel="noopener">詳細を見る</a>` : ''}</div>
+      <div class="meta">${isLiked(it) ? '<span class="like">あなた好み</span>' : ''}<span>予算 ${it.price}</span><span>徒歩 約${walk(it.dist)}分</span>${it.rating ? `<span>★${it.rating}</span>` : ''}${it.hours ? `<span>${it.hours}</span>` : ''}${it.url ? `<a href="${it.url}" target="_blank" rel="noopener">詳細を見る</a>` : ''}</div>
     </div>
     <div class="foot">
       <button type="button" class="bfav" aria-label="お気に入りに登録（左スワイプ）">${ICON_HEART}お気に入り</button>
@@ -365,7 +418,7 @@ function act(kind, id) {
   const idx = S.queue.findIndex(x => x.id === id); if (idx < 0) return;
   const [it] = S.queue.splice(idx, 1);
   if (kind === 'fav') { S.favs.unshift({ ...it, at: Date.now() }); save('favs', S.favs); toast('お気に入りに登録しました'); }
-  else { S.deleted.unshift({ ...it, at: Date.now() }); save('deleted', S.deleted); toast('削除しました（削除管理から復旧できます）'); }
+  else { S.deleted.unshift({ ...it, at: Date.now(), reason: 'none', expires: null }); save('deleted', S.deleted); askReason(it.id); }
   renderDeck(); renderLists();
 }
 
@@ -390,7 +443,8 @@ function renderLists() {
     const w = document.createElement('div'); w.innerHTML = rowHTML(it, '<button class="rb">復旧</button>');
     w.querySelector('.th').style.opacity = .55; w.querySelector('b').textContent = it.name;
     w.querySelector('.l1').textContent = it.genre + '・' + it.price + '・' + fmtDist(it.dist);
-    w.querySelector('.l2').textContent = new Date(it.at).toLocaleDateString('ja-JP', { month: 'long', day: 'numeric' }) + ' 削除';
+    const day = (t) => new Date(t).toLocaleDateString('ja-JP', { month: 'long', day: 'numeric' });
+    w.querySelector('.l2').textContent = day(it.at) + ' 削除' + (it.reason && it.reason !== 'none' ? '・' + REASONS[it.reason].label : '') + (it.expires ? '・' + day(it.expires) + 'に自動復旧' : '');
     w.querySelector('.rb').onclick = () => { S.deleted = S.deleted.filter(x => x.id !== it.id); save('deleted', S.deleted); rebuildQueue(); renderDeck(); renderLists(); toast('復旧しました'); };
     tl.appendChild(w.firstChild);
   });
@@ -450,7 +504,7 @@ function locateMe() {
 
 // ---------- 起動 ----------
 (async () => {
-  renderLists();
+  restoreExpired(); buildTaste(); renderLists();
   if (!S.settings.gkey) { $('#locname').textContent = 'APIキーを設定してください'; $('#deck').innerHTML = '<div class="empty"><b>Google Maps API キーが未設定です</b><p>「設定」タブでキーを保存すると地図と検索が有効になります。</p></div>'; showView('set'); return; }
   try { await loadMaps(S.settings.gkey); await initMap(); }
   catch (e) {

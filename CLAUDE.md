@@ -47,7 +47,9 @@ gourmet-app/
   `id` は `g:<placeId>` / `hp:<shopId>` で名前空間を分けている
 - `rebuildQueue()` … favs/deleted を除外した提示キュー
 - `renderDeck()` / `cardEl()` / `attachSwipe()` / `fly()` / `act(kind, id)` … キュー先頭 `S.shown` 件（既定 `PAGE`=3）を縦一覧で描画、「さらに表示」で 3 件ずつ追加、各カードにポインタースワイプ（しきい値 100px）と登録／削除ボタン。表示中のカード全部に地図ピンを立てる
-- `renderLists()` … お気に入り一覧・削除管理一覧（復旧ボタン）
+- `renderLists()` … お気に入り一覧・削除管理一覧（復旧ボタン、削除理由と自動復旧予定を表示）
+- `buildTaste()` / `tasteScore()` / `rankOmakase()` … 好みの学習。お気に入り／削除の履歴からジャンル・価格帯・距離帯のスコアを都度計算（別データは持たない）。おまかせの並びは 近さ 0.5 ＋ 好み 0.5 ＋ 乱数 0.3。`isLiked()` で「あなた好み」タグ
+- `askReason()` / `setReason()` / `restoreExpired()` … 削除直後の理由 4 択（高い／遠い／今の気分じゃない／興味なし、`REASONS`）。理由で学習の重み `DEL_W` が変わる。「今の気分じゃない」は 7 日で自動復旧（`expires`）
 - `geocodeQuery()` … 「場所を変更」の地名入力をジオコーディングして `setCenter()`。検索ボタン・Enter・「この場所で探す」（入力があるとき）の3経路から呼ばれる
 - `showView()` … タブ切替（探す／お気に入り／削除管理／設定）。「探す」は `#findScroll`（地図＋カード一覧＋ヒント）を1つのスクロール領域として持ち、ヘッダーとチップは固定。地図は `gestureHandling: 'cooperative'`（1本指=ページスクロール、2本指=地図操作）
 
