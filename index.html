@@ -223,16 +223,38 @@ async function search() {
     S.results = S.settings.source === 'hotpepper' ? await searchHotPepper(gen) : await searchGoogle(gen);
   } catch (e) { console.error(e); toast('検索に失敗: ' + e.message); }
   S.results.sort((a, b) => a.dist - b.dist);
+  if (S.genre === 'おまかせ') S.results = bucketShuffle(S.results, 500); // 近い順は保ちつつ帯内はランダムに
   rebuildQueue(); renderDeck();
+}
+// 距離順の配列を band(m) ごとの帯に分け、帯の中だけシャッフルする
+function bucketShuffle(sorted, band) {
+  const out = []; let bucket = [], edge = band;
+  for (const it of sorted) { if (it.dist >= edge) { out.push(...shuffle(bucket)); bucket = []; while (it.dist >= edge) edge += band; } bucket.push(it); }
+  return out.concat(shuffle(bucket));
+}
+// 「おまかせ」で追加するランダムタイプの候補（Places の Table A に存在する飲食系タイプ）
+const OMAKASE_TYPES = ['japanese_restaurant', 'ramen_restaurant', 'italian_restaurant', 'sushi_restaurant', 'cafe', 'korean_restaurant', 'chinese_restaurant', 'barbecue_restaurant', 'indian_restaurant', 'french_restaurant', 'thai_restaurant', 'hamburger_restaurant', 'pizza_restaurant', 'seafood_restaurant', 'steak_house', 'bakery', 'vietnamese_restaurant', 'mexican_restaurant'];
+const MAX_GOOGLE_REQUESTS = 4; // 1 検索あたりの Nearby Search 回数上限（課金対策）
+function shuffle(a) { for (let i = a.length - 1; i > 0; i--) { const j = Math.floor(Math.random() * (i + 1)); [a[i], a[j]] = [a[j], a[i]]; } return a; }
+// 周辺検索は 1 回 20 件が上限。条件を変えた複数リクエストを並列に投げて重複除去する
+function buildGoogleRequests(gen) {
+  const reqs = [{ types: gen.g, rank: 'POPULARITY' }, { types: gen.g, rank: 'DISTANCE' }];
+  if (gen.label === 'おまかせ') shuffle([...OMAKASE_TYPES]).slice(0, 2).forEach(t => reqs.push({ types: [t], rank: 'POPULARITY' }));
+  return reqs.slice(0, MAX_GOOGLE_REQUESTS);
 }
 async function searchGoogle(gen) {
   const { Place, SearchNearbyRankPreference } = await google.maps.importLibrary('places');
-  const req = {
+  const base = {
     fields: ['id', 'displayName', 'location', 'primaryTypeDisplayName', 'priceLevel', 'rating', 'userRatingCount', 'photos', 'editorialSummary', 'reviews', 'regularOpeningHours', 'googleMapsURI'],
-    locationRestriction: { center: S.center, radius: S.radius },
-    includedPrimaryTypes: gen.g, maxResultCount: 20, rankPreference: SearchNearbyRankPreference.POPULARITY, language: 'ja', region: 'jp'
+    locationRestriction: { center: S.center, radius: S.radius }, maxResultCount: 20, language: 'ja', region: 'jp'
   };
-  let { places } = await Place.searchNearby(req);
+  const settled = await Promise.allSettled(buildGoogleRequests(gen).map(r =>
+    Place.searchNearby({ ...base, includedPrimaryTypes: r.types, rankPreference: SearchNearbyRankPreference[r.rank] })));
+  const ok = settled.filter(r => r.status === 'fulfilled');
+  if (!ok.length) throw settled[0].reason;
+  settled.filter(r => r.status === 'rejected').forEach(r => console.warn('Nearby Search 一部失敗', r.reason));
+  const seen = new Set(); let places = [];
+  ok.forEach(r => (r.value.places || []).forEach(p => { if (!seen.has(p.id)) { seen.add(p.id); places.push(p); } }));
   if (gen.kw) places = places.filter(p => (p.displayName || '').includes(gen.kw) || (p.primaryTypeDisplayName || '').includes(gen.kw)).concat(places.filter(p => !(p.displayName || '').includes(gen.kw)));
   const today = (new Date().getDay() + 6) % 7; // weekdayDescriptions は月曜始まり
   return places.map(p => {

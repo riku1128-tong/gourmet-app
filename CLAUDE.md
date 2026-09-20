@@ -55,7 +55,7 @@ gourmet-app/
 
 | チップ | Google Places | ホットペッパー |
 |---|---|---|
-| おまかせ | restaurant | 指定なし |
+| おまかせ | restaurant（人気順＋距離順）＋ `OMAKASE_TYPES` からランダム 2 タイプ | 指定なし |
 | 和食 | japanese_restaurant | G004 |
 | ラーメン | ramen_restaurant | G013 |
 | イタリアン | italian_restaurant | G006 |
@@ -88,8 +88,9 @@ gourmet-app/
 
 ## 5. 未検証・既知の制約
 
-- **実 API キーでの動作確認は未実施**（作成環境から Google／リクルートに接続できなかったため）。最初に `node server.js` で起動し、設定タブにキーを入れて動作確認すること
-- Places API (New) の周辺検索は 1 回 20 件上限。半径を広げても件数は増えない
+- 実 API キーでの動作確認は 2026-09-20 に実施済み。Places のフィールド名・`priceLevel` の enum・`photos[0].getURI()` は想定どおりで、正規化の修正は不要だった
+- Places API (New) の周辺検索は 1 回 20 件上限。半径を広げても件数は増えないため、`buildGoogleRequests()` で条件違いのリクエストを最大 `MAX_GOOGLE_REQUESTS`=4 本並列に投げて place ID で重複除去している（ジャンル指定＝人気順＋距離順の 2 本、おまかせ＝さらに `OMAKASE_TYPES` からランダム 2 タイプ）。おまかせの並びは `bucketShuffle()` で 500m 帯ごとにシャッフル
+- 課金: `reviews` を fields に含めるため Nearby Search は Enterprise + Atmosphere SKU（月 1,000 回無料）。1 検索で最大 4 回消費するので、無料枠内は月 250 検索が目安
 - ホットペッパーの `range` は 1=300m / 2=500m / 3=1km / 4=2km / 5=3km。5km 指定時は 3km 検索になり、`dist <= radius` でフィルタ
 - `mapId: 'DEMO_MAP_ID'` は開発用。本番は Cloud Console で Map ID を発行
 - 位置情報 API（`navigator.geolocation`）は `http://localhost` か HTTPS でのみ動作
@@ -97,8 +98,8 @@ gourmet-app/
 
 ## 6. 次にやること（優先順）
 
-1. **実キーで動作確認**し、Places のフィールド名や `priceLevel` の値が想定どおりか検証。ズレがあれば `searchGoogle()` の正規化を修正
-2. 候補数の拡充：複数 includedPrimaryTypes の並列検索＋重複除去、または結果のシャッフル（「おまかせ」感を出す）
+1. ~~実キーで動作確認~~（完了：正規化の修正は不要だった）
+2. ~~候補数の拡充~~（完了：並列検索＋重複除去＋おまかせの帯内シャッフル）
 3. 店舗詳細画面（写真ギャラリー・メニュー・営業時間全文・経路リンク）
 4. プロジェクト分割：単一 HTML から Vite + TypeScript（または React）へ。`S` を store に、API 呼び出しを `src/api/google.ts` / `src/api/hotpepper.ts` に分離
 5. サーバー同期：favs / deleted をユーザー単位で保存（認証込み）。Google キーもサーバー側で発行・リファラ制限
