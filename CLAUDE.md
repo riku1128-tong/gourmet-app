@@ -46,7 +46,7 @@ gourmet-app/
   `{ id, name, genre, lat, lng, dish, dishLabel, price, hours, photo, url, rating, dist, source }`
   `id` は `g:<placeId>` / `hp:<shopId>` で名前空間を分けている
 - `rebuildQueue()` … favs/deleted を除外した提示キュー
-- `renderDeck()` / `attachSwipe()` / `fly()` / `act(kind)` … カード描画、ポインタースワイプ（しきい値 100px）、登録／削除
+- `renderDeck()` / `cardEl()` / `attachSwipe()` / `fly()` / `act(kind, id)` … キュー先頭 `S.shown` 件（既定 `PAGE`=3）を縦一覧で描画、「さらに表示」で 3 件ずつ追加、各カードにポインタースワイプ（しきい値 100px）と登録／削除ボタン。表示中のカード全部に地図ピンを立てる
 - `renderLists()` … お気に入り一覧・削除管理一覧（復旧ボタン）
 - `showView()` … タブ切替（探す／お気に入り／削除管理／設定）
 
