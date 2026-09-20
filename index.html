@@ -188,8 +188,10 @@ async function initMap() {
   const { Map } = await google.maps.importLibrary('maps');
   const { AdvancedMarkerElement, PinElement } = await google.maps.importLibrary('marker');
   geocoder = new google.maps.Geocoder();
+  // Map 生成時にコンテナの子要素が消されるため、バッジは先に退避してから戻す
+  const badge = $('#mapbadge');
   map = new Map($('#map'), { center: S.center, zoom: 15, mapId: 'DEMO_MAP_ID', disableDefaultUI: true, gestureHandling: 'greedy', clickableIcons: false });
-  $('#map').appendChild($('#mapbadge'));
+  $('#map').appendChild(badge);
   const pin = new PinElement({ background: '#E4572E', borderColor: '#fff', glyphColor: '#fff', scale: 1.1 });
   centerMarker = new AdvancedMarkerElement({ map, position: S.center, content: pin.element, gmpDraggable: true, title: '検索の中心' });
   centerMarker.addListener('dragend', () => { const p = centerMarker.position; setCenter({ lat: p.lat, lng: p.lng }, null, true); });
