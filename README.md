@@ -15,13 +15,13 @@
 
 ### 1. Google Maps API キー
 1. Google Cloud Console でプロジェクトを作成し、**Maps JavaScript API / Places API (New) / Geocoding API** を有効化。
-2. APIキーを作成し、「HTTPリファラー」で `http://localhost:8787/*` などに制限。
+2. APIキーを作成し、「HTTPリファラー」で `http://localhost:8797/*` などに制限。
 3. アプリの「設定」タブにキーを貼り付けて保存。
 
 ### 2. 起動
 ```bash
 cd gourmet-app
-node server.js            # → http://localhost:8787 を開く
+node server.js            # → http://localhost:8797 を開く
 ```
 `index.html` を直接ファイルで開いても動きますが、位置情報APIは `http://localhost` または HTTPS が必要です。
 
@@ -31,7 +31,7 @@ node server.js            # → http://localhost:8787 を開く
    ```bash
    HOTPEPPER_KEY=あなたのキー node server.js
    ```
-3. アプリの「設定」→ ソースを「ホットペッパーグルメ」に変更。プロキシURLは既定で `http://localhost:8787`。
+3. アプリの「設定」→ ソースを「ホットペッパーグルメ」に変更。プロキシURLは既定で `http://localhost:8797`。
 
 ## ジャンルの対応
 

@@ -1,10 +1,10 @@
 // ホットペッパーグルメAPI プロキシ + 静的配信（依存パッケージなし / Node 18+）
-// 使い方:  HOTPEPPER_KEY=xxxx node server.js   → http://localhost:8787
+// 使い方:  HOTPEPPER_KEY=xxxx node server.js   → http://localhost:8797（PORT=xxxx で変更可）
 const http = require('http');
 const fs = require('fs');
 const path = require('path');
 
-const PORT = process.env.PORT || 8787;
+const PORT = process.env.PORT || 8797; // 8787 は他ツールと競合したため変更
 const KEY = process.env.HOTPEPPER_KEY || '';
 const HP = 'https://webservice.recruit.co.jp/hotpepper/gourmet/v1/';
 const ALLOWED = new Set(['lat', 'lng', 'range', 'genre', 'keyword', 'count', 'start', 'order', 'budget']);

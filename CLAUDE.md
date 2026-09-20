@@ -34,7 +34,7 @@ gourmet-app/
 └── CLAUDE.md    # このファイル
 ```
 
-起動：`node server.js` → http://localhost:8787（ホットペッパーも使うなら `HOTPEPPER_KEY=xxx node server.js`）
+起動：`node server.js` → http://localhost:8797（ホットペッパーも使うなら `HOTPEPPER_KEY=xxx node server.js`）
 
 ### index.html の構造（主要関数）
 

@@ -116,7 +116,7 @@
     <div class="field"><label for="source">グルメ情報のソース</label>
       <select id="source"><option value="google">Google Places（ブラウザから直接）</option><option value="hotpepper">ホットペッパーグルメ（プロキシ経由）</option></select>
       <small>ぐるなびAPIは2021年に提供終了のため、価格帯・キャッチコピーが揃うホットペッパーグルメAPIを第2ソースにしています。CORS非対応のため同梱の server.js を経由します。</small></div>
-    <div class="field" id="proxyField"><label for="proxy">プロキシURL（ホットペッパー利用時）</label><input id="proxy" type="url" placeholder="http://localhost:8787"></div>
+    <div class="field" id="proxyField"><label for="proxy">プロキシURL（ホットペッパー利用時）</label><input id="proxy" type="url" placeholder="http://localhost:8797"></div>
     <button class="primary" id="btnSave">保存して再検索</button>
     <div class="note">Google Places の「おすすめ」は Google のエディトリアル要約または口コミの冒頭を、ホットペッパーは店舗のキャッチコピーを表示します。価格帯は Google が4段階の目安、ホットペッパーは店舗登録の予算です。</div>
   </div>
@@ -144,13 +144,15 @@
 const LS = (k, d) => { try { return JSON.parse(localStorage.getItem('gourmet.' + k)) ?? d; } catch { return d; } };
 const save = (k, v) => localStorage.setItem('gourmet.' + k, JSON.stringify(v));
 const S = {
-  settings: LS('settings', { gkey: '', source: 'google', proxy: 'http://localhost:8787' }),
+  settings: LS('settings', { gkey: '', source: 'google', proxy: '' }),
   favs: LS('favs', []), deleted: LS('deleted', []),
   center: LS('center', { lat: 35.6590, lng: 139.7006 }), // 渋谷駅
   radius: LS('radius', 1000), genre: 'おまかせ',
   results: [], queue: [], view: 'find', locName: '渋谷駅周辺'
 };
-if (!S.settings.proxy) S.settings.proxy = 'http://localhost:8787';
+// プロキシ既定値は同一オリジン（server.js が静的配信も兼ねるため）。file:// で開いた場合のみ固定ポート
+const DEFAULT_PROXY = location.protocol.startsWith('http') ? location.origin : 'http://localhost:8797';
+if (!S.settings.proxy || S.settings.proxy === 'http://localhost:8787') S.settings.proxy = DEFAULT_PROXY;
 
 const GENRES = [
   { label: 'おまかせ', g: ['restaurant'], hp: '' },
@@ -364,7 +366,7 @@ GENRES.forEach(g => { const b = document.createElement('button'); b.className = 
 $('#gkey').value = S.settings.gkey; $('#source').value = S.settings.source; $('#proxy').value = S.settings.proxy;
 $('#btnSave').onclick = async () => {
   const changedKey = $('#gkey').value.trim() !== S.settings.gkey;
-  S.settings = { gkey: $('#gkey').value.trim(), source: $('#source').value, proxy: $('#proxy').value.trim() || 'http://localhost:8787' }; save('settings', S.settings);
+  S.settings = { gkey: $('#gkey').value.trim(), source: $('#source').value, proxy: $('#proxy').value.trim() || DEFAULT_PROXY }; save('settings', S.settings);
   if (changedKey) { location.reload(); return; }
   showView('find'); search();
 };
