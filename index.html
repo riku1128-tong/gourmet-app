@@ -1,0 +1,395 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>グルメレコメンド</title>
+<link href="https://fonts.googleapis.com/css2?family=Zen+Kaku+Gothic+New:wght@400;500;700&display=swap" rel="stylesheet">
+<style>
+  :root{--bg:#FBF7F0;--ink:#1F1A17;--mute:#6B625B;--line:#E8DFD2;--accent:#E4572E;--fav:#2F7A58;--card:#FFFFFF}
+  *{box-sizing:border-box}
+  html,body{margin:0;height:100%;background:var(--bg);color:var(--ink);font-family:'Zen Kaku Gothic New','Hiragino Sans','Noto Sans JP',sans-serif;-webkit-font-smoothing:antialiased}
+  button,input,select{font-family:inherit;font-size:inherit}
+  #app{height:100%;max-width:480px;margin:0 auto;display:flex;flex-direction:column;overflow:hidden;background:var(--bg)}
+  .hdr{display:flex;align-items:center;gap:10px;padding:14px 16px 6px}
+  .hdr .loc{flex:1;min-width:0}
+  .hdr .loc small{display:block;font-size:11px;color:var(--mute)}
+  .hdr .loc b{display:block;font-size:15px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .pill{height:40px;padding:0 14px;border-radius:20px;border:1px solid #D9CFC2;background:#fff;color:var(--ink);font-size:13px;font-weight:500;cursor:pointer;display:inline-flex;align-items:center;gap:6px}
+  .pill.on{background:var(--ink);border-color:var(--ink);color:#fff}
+  .chips{display:flex;gap:8px;padding:6px 16px 10px;overflow-x:auto;scrollbar-width:none;flex-shrink:0}
+  .chips::-webkit-scrollbar{display:none}
+  .chips .pill{height:36px;flex-shrink:0}
+  #map{height:38vh;min-height:220px;background:#EDE6D8;flex-shrink:0;position:relative}
+  #mapbadge{position:absolute;left:12px;bottom:12px;z-index:2;background:rgba(255,255,255,.94);font-size:12px;font-weight:500;padding:6px 10px;border-radius:14px}
+  .deck{flex:1;position:relative;padding:12px 16px 0;min-height:0}
+  .card{position:absolute;left:16px;right:16px;top:12px;background:var(--card);border-radius:20px;box-shadow:0 8px 24px rgba(31,26,23,.10);overflow:hidden;touch-action:pan-y;user-select:none;will-change:transform;transition:transform .25s ease,opacity .25s ease}
+  .card.drag{transition:none}
+  .card .img{height:34vw;max-height:170px;min-height:120px;background:#9C6A1C center/cover no-repeat;display:flex;align-items:flex-end;justify-content:space-between;padding:12px 16px}
+  .card .img .genre{background:#fff;border-radius:12px;padding:4px 10px;font-size:12px;font-weight:700}
+  .card .img .src{font-size:11px;color:#fff;text-shadow:0 1px 2px rgba(0,0,0,.6)}
+  .card .body{padding:14px 16px 16px;display:flex;flex-direction:column;gap:9px}
+  .card .ttl{display:flex;justify-content:space-between;align-items:baseline;gap:8px}
+  .card .ttl b{font-size:19px;line-height:1.25}
+  .card .ttl .dist{font-size:14px;font-weight:700;color:var(--accent);white-space:nowrap}
+  .card .dish{display:flex;gap:10px;align-items:flex-start;font-size:14px;font-weight:500;line-height:1.45}
+  .card .dish .tag{flex-shrink:0;font-size:11px;font-weight:700;color:#B8431F;background:#FBEAE3;padding:3px 8px;border-radius:8px;margin-top:2px}
+  .card .meta{display:flex;gap:12px;flex-wrap:wrap;font-size:12.5px;color:var(--mute)}
+  .card .meta a{color:var(--ink);font-weight:500}
+  .stamp{position:absolute;top:18px;padding:6px 12px;border:3px solid;border-radius:10px;font-size:18px;font-weight:700;opacity:0;transform:rotate(-12deg);background:rgba(255,255,255,.9)}
+  .stamp.fav{left:16px;color:var(--fav);border-color:var(--fav)}
+  .stamp.del{right:16px;color:#8A8078;border-color:#8A8078;transform:rotate(12deg)}
+  .empty{position:absolute;left:16px;right:16px;top:12px;background:#fff;border:1px dashed #D9CFC2;border-radius:20px;padding:28px 20px;text-align:center;display:flex;flex-direction:column;gap:10px;align-items:center}
+  .empty b{font-size:16px}.empty p{margin:0;font-size:13px;color:var(--mute);line-height:1.6}
+  .actions{display:flex;gap:12px;padding:10px 16px 2px;flex-shrink:0}
+  .actions button{flex:1;height:52px;border-radius:26px;border:2px solid;background:#fff;font-size:14px;font-weight:700;display:flex;align-items:center;justify-content:center;gap:8px;cursor:pointer}
+  .actions .bfav{color:var(--fav);border-color:var(--fav)}
+  .actions .bdel{color:#5C544E;border-color:#8A8078}
+  .hint{text-align:center;font-size:11px;color:#8A8078;padding:4px 16px 8px}
+  nav{display:flex;border-top:1px solid var(--line);background:#fff;padding:8px 8px calc(10px + env(safe-area-inset-bottom));flex-shrink:0}
+  nav button{flex:1;position:relative;height:48px;border:none;background:none;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:3px;font-size:11px;font-weight:500;color:var(--mute);cursor:pointer}
+  nav button.on{color:var(--accent);font-weight:700}
+  nav .badge{position:absolute;top:0;right:18%;min-width:18px;height:18px;padding:0 5px;border-radius:9px;color:#fff;font-size:11px;font-weight:700;display:flex;align-items:center;justify-content:center}
+  svg{flex-shrink:0}
+  .view{flex:1;overflow:auto;padding:0 16px 16px;display:none;flex-direction:column;gap:10px}
+  .view.on{display:flex}
+  .view h1{font-size:22px;margin:16px 0 0}
+  .view .sub{font-size:13px;color:var(--mute);margin-bottom:6px}
+  .row{display:flex;gap:12px;align-items:center;padding:12px;border-radius:16px;background:#fff;border:1px solid var(--line)}
+  .row .th{width:64px;height:64px;border-radius:12px;background:#9C6A1C center/cover;flex-shrink:0}
+  .row .tx{flex:1;min-width:0;display:flex;flex-direction:column;gap:3px}
+  .row .tx b{font-size:15px}.row .tx span{font-size:12px;color:var(--mute);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .row .ic{width:44px;height:44px;border-radius:22px;border:none;background:#E9F3EE;color:var(--fav);display:flex;align-items:center;justify-content:center;cursor:pointer;flex-shrink:0}
+  .row .rb{height:40px;padding:0 14px;border-radius:20px;border:none;background:var(--ink);color:#fff;font-size:13px;font-weight:700;cursor:pointer;flex-shrink:0}
+  .field{display:flex;flex-direction:column;gap:6px}
+  .field label{font-size:12px;font-weight:700}
+  .field input,.field select{height:46px;border:1px solid #D9CFC2;border-radius:12px;padding:0 12px;background:#fff;width:100%}
+  .field small{font-size:11px;color:var(--mute);line-height:1.5}
+  .primary{height:50px;border-radius:25px;border:none;background:var(--accent);color:#fff;font-size:15px;font-weight:700;cursor:pointer}
+  .note{padding:12px 14px;border-radius:14px;background:#F3ECDF;font-size:12px;color:#5C544E;line-height:1.55}
+  .search{display:flex;gap:8px}
+  .search input{flex:1;height:44px;border:1px solid #D9CFC2;border-radius:22px;padding:0 14px;background:#fff}
+  .seg{display:flex;gap:6px}.seg .pill{flex:1;justify-content:center;height:38px}
+  dialog{border:none;border-radius:20px;padding:0;max-width:420px;width:calc(100% - 32px)}
+  dialog::backdrop{background:rgba(31,26,23,.5)}
+  dialog .in{padding:20px;display:flex;flex-direction:column;gap:14px}
+  .toast{position:fixed;left:50%;bottom:110px;transform:translateX(-50%);background:var(--ink);color:#fff;font-size:13px;padding:10px 16px;border-radius:20px;opacity:0;transition:opacity .2s;pointer-events:none;z-index:9}
+  .toast.on{opacity:1}
+</style>
+</head>
+<body>
+<div id="app">
+  <div class="hdr">
+    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#E4572E" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22s7-7 7-12a7 7 0 0 0-14 0c0 5 7 12 7 12z"/><circle cx="12" cy="10" r="2.5"/></svg>
+    <div class="loc"><small>検索中の場所</small><b id="locname">位置情報を取得中…</b></div>
+    <button class="pill" id="btnLoc">場所を変更</button>
+  </div>
+  <div class="chips" id="chips"></div>
+  <div id="map"><div id="mapbadge">—</div></div>
+
+  <!-- 探す -->
+  <div class="deck" id="deck"></div>
+  <div class="actions" id="actions">
+    <button class="bfav" id="btnFav" aria-label="お気に入りに登録（左スワイプ）">
+      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M19 12H5M12 19l-7-7 7-7"/></svg>お気に入り
+      <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor"><path d="M12 21s-7-4.5-9.5-9A5 5 0 0 1 12 6a5 5 0 0 1 9.5 6c-2.5 4.5-9.5 9-9.5 9z"/></svg>
+    </button>
+    <button class="bdel" id="btnDel" aria-label="削除する（右スワイプ）">
+      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 7h16M10 11v6M14 11v6M6 7l1 13h10l1-13M9 7V4h6v3"/></svg>削除
+      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14M12 5l7 7-7 7"/></svg>
+    </button>
+  </div>
+  <div class="hint" id="hint">← 左にスワイプでお気に入り ／ 右にスワイプで削除 →</div>
+
+  <!-- お気に入り -->
+  <div class="view" id="vFav"><h1>お気に入り</h1><div class="sub" id="favSub"></div><div id="favList"></div></div>
+  <!-- 削除管理 -->
+  <div class="view" id="vTrash">
+    <h1>削除管理</h1><div class="sub">削除したお店は「探す」に表示されません。復旧するとまた提案されます。</div>
+    <div style="display:flex;justify-content:space-between;align-items:center"><b id="trashCount" style="font-size:13px"></b><button class="pill" id="btnRestoreAll">すべて復旧</button></div>
+    <div id="trashList"></div>
+  </div>
+  <!-- 設定 -->
+  <div class="view" id="vSet">
+    <h1>設定</h1><div class="sub">APIキーはこの端末のブラウザにのみ保存されます。</div>
+    <div class="field"><label for="gkey">Google Maps API キー（必須）</label><input id="gkey" type="password" placeholder="AIza…"><small>Maps JavaScript API・Places API (New)・Geocoding API を有効にしたキー。HTTPリファラ制限を推奨。</small></div>
+    <div class="field"><label for="source">グルメ情報のソース</label>
+      <select id="source"><option value="google">Google Places（ブラウザから直接）</option><option value="hotpepper">ホットペッパーグルメ（プロキシ経由）</option></select>
+      <small>ぐるなびAPIは2021年に提供終了のため、価格帯・キャッチコピーが揃うホットペッパーグルメAPIを第2ソースにしています。CORS非対応のため同梱の server.js を経由します。</small></div>
+    <div class="field" id="proxyField"><label for="proxy">プロキシURL（ホットペッパー利用時）</label><input id="proxy" type="url" placeholder="http://localhost:8787"></div>
+    <button class="primary" id="btnSave">保存して再検索</button>
+    <div class="note">Google Places の「おすすめ」は Google のエディトリアル要約または口コミの冒頭を、ホットペッパーは店舗のキャッチコピーを表示します。価格帯は Google が4段階の目安、ホットペッパーは店舗登録の予算です。</div>
+  </div>
+
+  <nav>
+    <button class="on" data-v="find"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="11" cy="11" r="7"/><path d="M20 20l-4-4"/></svg>探す</button>
+    <button data-v="fav"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"><path d="M12 21s-7-4.5-9.5-9A5 5 0 0 1 12 6a5 5 0 0 1 9.5 6c-2.5 4.5-9.5 9-9.5 9z"/></svg>お気に入り<span class="badge" id="bFav" style="background:#2F7A58">0</span></button>
+    <button data-v="trash"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 7h16M10 11v6M14 11v6M6 7l1 13h10l1-13M9 7V4h6v3"/></svg>削除管理<span class="badge" id="bDel" style="background:#8A8078">0</span></button>
+    <button data-v="set"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="3"/><path d="M12 2v3M12 19v3M2 12h3M19 12h3M4.9 4.9l2.1 2.1M17 17l2.1 2.1M4.9 19.1L7 17M17 7l2.1-2.1"/></svg>設定</button>
+  </nav>
+</div>
+
+<dialog id="dlgLoc"><div class="in">
+  <b style="font-size:18px">場所を変更</b>
+  <div class="search"><input id="q" placeholder="駅名・住所・スポット名"><button class="pill" id="btnGeo">検索</button></div>
+  <div class="field"><label>検索範囲</label><div class="seg" id="radius"><button class="pill" data-r="500">500m</button><button class="pill on" data-r="1000">1km</button><button class="pill" data-r="2000">2km</button><button class="pill" data-r="5000">5km</button></div></div>
+  <button class="pill" id="btnHere">現在地に戻す</button>
+  <small style="font-size:12px;color:var(--mute)">地図上のオレンジのピンはドラッグで移動できます。</small>
+  <button class="primary" id="btnApply">この場所で探す</button>
+</div></dialog>
+<div class="toast" id="toast"></div>
+
+<script>
+// ---------- 状態 ----------
+const LS = (k, d) => { try { return JSON.parse(localStorage.getItem('gourmet.' + k)) ?? d; } catch { return d; } };
+const save = (k, v) => localStorage.setItem('gourmet.' + k, JSON.stringify(v));
+const S = {
+  settings: LS('settings', { gkey: '', source: 'google', proxy: 'http://localhost:8787' }),
+  favs: LS('favs', []), deleted: LS('deleted', []),
+  center: LS('center', { lat: 35.6590, lng: 139.7006 }), // 渋谷駅
+  radius: LS('radius', 1000), genre: 'おまかせ',
+  results: [], queue: [], view: 'find', locName: '渋谷駅周辺'
+};
+if (!S.settings.proxy) S.settings.proxy = 'http://localhost:8787';
+
+const GENRES = [
+  { label: 'おまかせ', g: ['restaurant'], hp: '' },
+  { label: '和食', g: ['japanese_restaurant'], hp: 'G004' },
+  { label: 'ラーメン', g: ['ramen_restaurant'], hp: 'G013' },
+  { label: 'イタリアン', g: ['italian_restaurant'], hp: 'G006' },
+  { label: '寿司', g: ['sushi_restaurant'], hp: 'G004', kw: '寿司' },
+  { label: 'カフェ', g: ['cafe', 'coffee_shop'], hp: 'G014' },
+  { label: '韓国料理', g: ['korean_restaurant'], hp: 'G017' },
+  { label: '中華', g: ['chinese_restaurant'], hp: 'G007' },
+  { label: '焼肉', g: ['barbecue_restaurant'], hp: 'G008' },
+  { label: 'カレー', g: ['indian_restaurant'], hp: '', kw: 'カレー' },
+  { label: '居酒屋', g: ['bar'], hp: 'G001' }
+];
+const PRICE = { FREE: '無料', INEXPENSIVE: '〜¥1,000', MODERATE: '¥1,000〜3,000', EXPENSIVE: '¥3,000〜8,000', VERY_EXPENSIVE: '¥8,000〜' };
+const $ = (s) => document.querySelector(s);
+const toast = (m) => { const t = $('#toast'); t.textContent = m; t.classList.add('on'); clearTimeout(t._t); t._t = setTimeout(() => t.classList.remove('on'), 1800); };
+const fmtDist = (m) => m < 1000 ? Math.round(m / 10) * 10 + 'm' : (m / 1000).toFixed(1) + 'km';
+const walk = (m) => Math.max(1, Math.round(m / 80));
+
+// ---------- Google Maps 読み込み ----------
+let map, centerMarker, shopMarker, circle, geocoder;
+function loadMaps(key) {
+  return new Promise((res, rej) => {
+    if (window.google && google.maps) return res();
+    const s = document.createElement('script');
+    s.src = 'https://maps.googleapis.com/maps/api/js?key=' + encodeURIComponent(key) + '&v=weekly&libraries=places,geometry,marker&language=ja&region=JP&loading=async&callback=__mapsReady';
+    window.__mapsReady = res; s.onerror = () => rej(new Error('Google Maps の読み込みに失敗しました'));
+    document.head.appendChild(s);
+  });
+}
+async function initMap() {
+  const { Map } = await google.maps.importLibrary('maps');
+  const { AdvancedMarkerElement, PinElement } = await google.maps.importLibrary('marker');
+  geocoder = new google.maps.Geocoder();
+  map = new Map($('#map'), { center: S.center, zoom: 15, mapId: 'DEMO_MAP_ID', disableDefaultUI: true, gestureHandling: 'greedy', clickableIcons: false });
+  $('#map').appendChild($('#mapbadge'));
+  const pin = new PinElement({ background: '#E4572E', borderColor: '#fff', glyphColor: '#fff', scale: 1.1 });
+  centerMarker = new AdvancedMarkerElement({ map, position: S.center, content: pin.element, gmpDraggable: true, title: '検索の中心' });
+  centerMarker.addListener('dragend', () => { const p = centerMarker.position; setCenter({ lat: p.lat, lng: p.lng }, null, true); });
+  circle = new google.maps.Circle({ map, center: S.center, radius: S.radius, fillColor: '#E4572E', fillOpacity: .08, strokeColor: '#E4572E', strokeOpacity: .4, strokeWeight: 1 });
+  shopMarker = new AdvancedMarkerElement({ map: null, content: shopPin(''), zIndex: 10 });
+}
+function shopPin(name) {
+  const d = document.createElement('div');
+  d.style.cssText = 'display:flex;flex-direction:column;align-items:center;transform:translateY(-4px)';
+  d.innerHTML = '<div style="background:#1F1A17;color:#fff;font-size:12px;font-weight:700;padding:5px 10px;border-radius:12px;white-space:nowrap;margin-bottom:4px;font-family:inherit"></div><svg width="30" height="38" viewBox="0 0 30 38"><path d="M15 37s13-12.5 13-22A13 13 0 0 0 2 15c0 9.5 13 22 13 22z" fill="#2F7A58" stroke="#fff" stroke-width="2"/><circle cx="15" cy="15" r="5" fill="#fff"/></svg>';
+  d.firstChild.textContent = name; return d;
+}
+async function setCenter(c, name, reverse) {
+  S.center = c; save('center', c);
+  if (map) { map.panTo(c); centerMarker.position = c; circle.setCenter(c); }
+  if (name) S.locName = name;
+  else if (reverse && geocoder) {
+    try { const r = await geocoder.geocode({ location: c, language: 'ja' }); const a = r.results?.[0]?.address_components || [];
+      const pick = (t) => a.find(x => x.types.includes(t))?.long_name;
+      const area = [pick('sublocality_level_1') || pick('locality'), pick('sublocality_level_2')].filter(Boolean).join('');
+      S.locName = area ? area + '付近' : (r.results?.[0]?.formatted_address || '指定地点');
+    } catch { S.locName = '指定地点'; }
+  }
+  $('#locname').textContent = S.locName;
+  await search();
+}
+
+// ---------- 検索（Google Places / ホットペッパー） ----------
+async function search() {
+  S.results = []; renderDeck(true);
+  const gen = GENRES.find(g => g.label === S.genre);
+  try {
+    S.results = S.settings.source === 'hotpepper' ? await searchHotPepper(gen) : await searchGoogle(gen);
+  } catch (e) { console.error(e); toast('検索に失敗: ' + e.message); }
+  S.results.sort((a, b) => a.dist - b.dist);
+  rebuildQueue(); renderDeck();
+}
+async function searchGoogle(gen) {
+  const { Place, SearchNearbyRankPreference } = await google.maps.importLibrary('places');
+  const req = {
+    fields: ['id', 'displayName', 'location', 'primaryTypeDisplayName', 'priceLevel', 'rating', 'userRatingCount', 'photos', 'editorialSummary', 'reviews', 'regularOpeningHours', 'googleMapsURI'],
+    locationRestriction: { center: S.center, radius: S.radius },
+    includedPrimaryTypes: gen.g, maxResultCount: 20, rankPreference: SearchNearbyRankPreference.POPULARITY, language: 'ja', region: 'jp'
+  };
+  let { places } = await Place.searchNearby(req);
+  if (gen.kw) places = places.filter(p => (p.displayName || '').includes(gen.kw) || (p.primaryTypeDisplayName || '').includes(gen.kw)).concat(places.filter(p => !(p.displayName || '').includes(gen.kw)));
+  const today = (new Date().getDay() + 6) % 7; // weekdayDescriptions は月曜始まり
+  return places.map(p => {
+    const loc = p.location; const lat = loc.lat(), lng = loc.lng();
+    const rev = p.reviews?.[0]?.text;
+    return {
+      id: 'g:' + p.id, name: p.displayName, genre: p.primaryTypeDisplayName || 'レストラン', lat, lng,
+      dish: p.editorialSummary ? p.editorialSummary : (rev ? '口コミ「' + rev.replace(/\s+/g, ' ').slice(0, 42) + (rev.length > 42 ? '…' : '') + '」' : '情報なし'),
+      dishLabel: p.editorialSummary ? 'おすすめ' : '口コミ',
+      price: PRICE[p.priceLevel] || '価格帯 不明',
+      hours: p.regularOpeningHours?.weekdayDescriptions?.[today]?.replace(/^[^:：]+[:：]\s*/, '本日 ') || '',
+      photo: p.photos?.[0]?.getURI({ maxWidth: 800 }) || '', url: p.googleMapsURI || '', rating: p.rating,
+      dist: google.maps.geometry.spherical.computeDistanceBetween(S.center, { lat, lng }), source: 'Google'
+    };
+  });
+}
+async function searchHotPepper(gen) {
+  const range = S.radius <= 300 ? 1 : S.radius <= 500 ? 2 : S.radius <= 1000 ? 3 : S.radius <= 2000 ? 4 : 5; // API仕様: 1=300m…5=3km
+  const u = new URL('/api/hotpepper', S.settings.proxy);
+  u.searchParams.set('lat', S.center.lat); u.searchParams.set('lng', S.center.lng); u.searchParams.set('range', range); u.searchParams.set('count', 50);
+  if (gen.hp) u.searchParams.set('genre', gen.hp);
+  if (gen.kw) u.searchParams.set('keyword', gen.kw);
+  const r = await fetch(u); if (!r.ok) throw new Error('プロキシ応答 ' + r.status);
+  const j = await r.json(); if (j.results?.error) throw new Error(j.results.error[0]?.message || 'API error');
+  return (j.results?.shop || []).map(s => ({
+    id: 'hp:' + s.id, name: s.name, genre: s.genre?.name || '', lat: +s.lat, lng: +s.lng,
+    dish: s.catch || s.genre?.catch || '情報なし', dishLabel: 'おすすめ', price: s.budget?.name || '価格帯 不明',
+    hours: s.open ? s.open.split('（')[0].slice(0, 30) : '', photo: s.photo?.mobile?.l || s.photo?.pc?.l || '', url: s.urls?.pc || '',
+    dist: google.maps.geometry.spherical.computeDistanceBetween(S.center, { lat: +s.lat, lng: +s.lng }), source: 'ホットペッパーグルメ'
+  })).filter(x => x.dist <= S.radius);
+}
+function rebuildQueue() {
+  const hide = new Set([...S.favs, ...S.deleted].map(x => x.id));
+  S.queue = S.results.filter(r => !hide.has(r.id));
+}
+
+// ---------- 探すデッキ描画 & スワイプ ----------
+function renderDeck(loading) {
+  const d = $('#deck'); d.innerHTML = '';
+  $('#mapbadge').textContent = '半径' + fmtDist(S.radius) + '・残り ' + S.queue.length + '件';
+  const it = S.queue[0];
+  if (loading) { d.innerHTML = '<div class="empty"><b>お店を探しています…</b></div>'; return; }
+  if (!it) {
+    if (shopMarker) shopMarker.map = null;
+    d.innerHTML = '<div class="empty"><b>' + (S.results.length ? 'このジャンルの候補は見終わりました' : '候補が見つかりませんでした') + '</b><p>削除したお店は「削除管理」から復旧できます。<br>範囲を広げるか、別のジャンルを試してみてください。</p></div>';
+    return;
+  }
+  if (shopMarker) { shopMarker.content = shopPin(it.name); shopMarker.position = { lat: it.lat, lng: it.lng }; shopMarker.map = map; }
+  const c = document.createElement('div'); c.className = 'card';
+  c.innerHTML = `
+    <div class="img" style="${it.photo ? `background-image:url('${it.photo}')` : ''}"><span class="src">${it.source}</span><span class="genre"></span></div>
+    <div class="stamp fav">お気に入り</div><div class="stamp del">削除</div>
+    <div class="body">
+      <div class="ttl"><b></b><span class="dist">${fmtDist(it.dist)}</span></div>
+      <div class="dish"><span class="tag">${it.dishLabel}</span><span class="dtext"></span></div>
+      <div class="meta"><span>予算 ${it.price}</span><span>徒歩 約${walk(it.dist)}分</span>${it.rating ? `<span>★${it.rating}</span>` : ''}${it.hours ? `<span>${it.hours}</span>` : ''}${it.url ? `<a href="${it.url}" target="_blank" rel="noopener">詳細を見る</a>` : ''}</div>
+    </div>`;
+  c.querySelector('.genre').textContent = it.genre; c.querySelector('.ttl b').textContent = it.name; c.querySelector('.dtext').textContent = it.dish;
+  d.appendChild(c); attachSwipe(c);
+}
+function attachSwipe(c) {
+  let x0 = 0, dx = 0, active = false;
+  const fav = c.querySelector('.stamp.fav'), del = c.querySelector('.stamp.del');
+  c.addEventListener('pointerdown', e => { if (e.target.closest('a')) return; active = true; x0 = e.clientX; dx = 0; c.classList.add('drag'); c.setPointerCapture(e.pointerId); });
+  c.addEventListener('pointermove', e => {
+    if (!active) return; dx = e.clientX - x0;
+    c.style.transform = `translateX(${dx}px) rotate(${dx / 18}deg)`;
+    fav.style.opacity = Math.min(1, Math.max(0, -dx / 90)); del.style.opacity = Math.min(1, Math.max(0, dx / 90));
+  });
+  const end = () => {
+    if (!active) return; active = false; c.classList.remove('drag');
+    if (dx < -100) fly(c, -1, () => act('fav'));
+    else if (dx > 100) fly(c, 1, () => act('del'));
+    else { c.style.transform = ''; fav.style.opacity = 0; del.style.opacity = 0; }
+  };
+  c.addEventListener('pointerup', end); c.addEventListener('pointercancel', end);
+}
+function fly(c, dir, cb) { c.style.transform = `translateX(${dir * 600}px) rotate(${dir * 30}deg)`; c.style.opacity = 0; setTimeout(cb, 220); }
+function act(kind) {
+  const it = S.queue.shift(); if (!it) return;
+  if (kind === 'fav') { S.favs.unshift({ ...it, at: Date.now() }); save('favs', S.favs); toast('お気に入りに登録しました'); }
+  else { S.deleted.unshift({ ...it, at: Date.now() }); save('deleted', S.deleted); toast('削除しました（削除管理から復旧できます）'); }
+  renderDeck(); renderLists();
+}
+$('#btnFav').onclick = () => { const c = $('.card'); c ? fly(c, -1, () => act('fav')) : null; };
+$('#btnDel').onclick = () => { const c = $('.card'); c ? fly(c, 1, () => act('del')) : null; };
+
+// ---------- 一覧（お気に入り／削除管理） ----------
+function rowHTML(it, btn) {
+  return `<div class="row"><div class="th" style="${it.photo ? `background-image:url('${it.photo}')` : ''}"></div>
+    <div class="tx"><b></b><span class="l1"></span><span class="l2"></span></div>${btn}</div>`;
+}
+function renderLists() {
+  $('#bFav').textContent = S.favs.length; $('#bDel').textContent = S.deleted.length;
+  $('#favSub').textContent = S.favs.length + '件・近い順'; $('#trashCount').textContent = '削除済み ' + S.deleted.length + '件';
+  const fl = $('#favList'); fl.innerHTML = '';
+  [...S.favs].sort((a, b) => a.dist - b.dist).forEach(it => {
+    const w = document.createElement('div'); w.innerHTML = rowHTML(it, '<button class="ic" aria-label="お気に入りを解除"><svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor"><path d="M12 21s-7-4.5-9.5-9A5 5 0 0 1 12 6a5 5 0 0 1 9.5 6c-2.5 4.5-9.5 9-9.5 9z"/></svg></button>');
+    w.querySelector('b').textContent = it.name; w.querySelector('.l1').textContent = it.genre + '・' + it.dish; w.querySelector('.l2').textContent = '予算 ' + it.price + '・' + fmtDist(it.dist) + '（徒歩約' + walk(it.dist) + '分）';
+    w.querySelector('.ic').onclick = () => { S.favs = S.favs.filter(x => x.id !== it.id); save('favs', S.favs); rebuildQueue(); renderDeck(); renderLists(); };
+    w.querySelector('.th').onclick = () => { if (map) map.panTo({ lat: it.lat, lng: it.lng }); };
+    fl.appendChild(w.firstChild);
+  });
+  const tl = $('#trashList'); tl.innerHTML = '';
+  S.deleted.forEach(it => {
+    const w = document.createElement('div'); w.innerHTML = rowHTML(it, '<button class="rb">復旧</button>');
+    w.querySelector('.th').style.opacity = .55; w.querySelector('b').textContent = it.name;
+    w.querySelector('.l1').textContent = it.genre + '・' + it.price + '・' + fmtDist(it.dist);
+    w.querySelector('.l2').textContent = new Date(it.at).toLocaleDateString('ja-JP', { month: 'long', day: 'numeric' }) + ' 削除';
+    w.querySelector('.rb').onclick = () => { S.deleted = S.deleted.filter(x => x.id !== it.id); save('deleted', S.deleted); rebuildQueue(); renderDeck(); renderLists(); toast('復旧しました'); };
+    tl.appendChild(w.firstChild);
+  });
+}
+$('#btnRestoreAll').onclick = () => { if (!S.deleted.length) return; S.deleted = []; save('deleted', []); rebuildQueue(); renderDeck(); renderLists(); toast('すべて復旧しました'); };
+
+// ---------- ナビ・ジャンル・設定・場所 ----------
+document.querySelectorAll('nav button').forEach(b => b.onclick = () => showView(b.dataset.v));
+function showView(v) {
+  S.view = v; document.querySelectorAll('nav button').forEach(b => b.classList.toggle('on', b.dataset.v === v));
+  const find = v === 'find';
+  ['#chips', '#map', '#deck', '#actions', '#hint'].forEach(s => $(s).style.display = find ? '' : 'none');
+  $('#vFav').classList.toggle('on', v === 'fav'); $('#vTrash').classList.toggle('on', v === 'trash'); $('#vSet').classList.toggle('on', v === 'set');
+  if (find && map) google.maps.event.trigger(map, 'resize');
+}
+const chips = $('#chips');
+GENRES.forEach(g => { const b = document.createElement('button'); b.className = 'pill' + (g.label === S.genre ? ' on' : ''); b.textContent = g.label;
+  b.onclick = () => { S.genre = g.label; chips.querySelectorAll('.pill').forEach(x => x.classList.toggle('on', x === b)); search(); }; chips.appendChild(b); });
+
+$('#gkey').value = S.settings.gkey; $('#source').value = S.settings.source; $('#proxy').value = S.settings.proxy;
+$('#btnSave').onclick = async () => {
+  const changedKey = $('#gkey').value.trim() !== S.settings.gkey;
+  S.settings = { gkey: $('#gkey').value.trim(), source: $('#source').value, proxy: $('#proxy').value.trim() || 'http://localhost:8787' }; save('settings', S.settings);
+  if (changedKey) { location.reload(); return; }
+  showView('find'); search();
+};
+$('#btnLoc').onclick = () => $('#dlgLoc').showModal();
+$('#radius').querySelectorAll('.pill').forEach(b => { b.classList.toggle('on', +b.dataset.r === S.radius); b.onclick = () => { S.radius = +b.dataset.r; save('radius', S.radius); $('#radius').querySelectorAll('.pill').forEach(x => x.classList.toggle('on', x === b)); if (circle) circle.setRadius(S.radius); }; });
+$('#btnGeo').onclick = async () => {
+  const q = $('#q').value.trim(); if (!q || !geocoder) return;
+  try { const r = await geocoder.geocode({ address: q, region: 'jp', language: 'ja' }); const g = r.results?.[0]; if (!g) return toast('見つかりませんでした');
+    $('#dlgLoc').close(); await setCenter({ lat: g.geometry.location.lat(), lng: g.geometry.location.lng() }, g.formatted_address.replace(/^日本、?/, '').replace(/^〒?\d{3}-?\d{4}\s*/, '')); } catch (e) { toast('検索に失敗しました'); }
+};
+$('#btnHere').onclick = () => { $('#dlgLoc').close(); locateMe(); };
+$('#btnApply').onclick = () => { $('#dlgLoc').close(); search(); };
+function locateMe() {
+  if (!navigator.geolocation) return toast('位置情報が使えません');
+  navigator.geolocation.getCurrentPosition(p => setCenter({ lat: p.coords.latitude, lng: p.coords.longitude }, null, true), () => { toast('現在地を取得できませんでした'); setCenter(S.center, S.locName); }, { enableHighAccuracy: true, timeout: 8000 });
+}
+
+// ---------- 起動 ----------
+(async () => {
+  renderLists();
+  if (!S.settings.gkey) { $('#locname').textContent = 'APIキーを設定してください'; $('#deck').innerHTML = '<div class="empty"><b>Google Maps API キーが未設定です</b><p>「設定」タブでキーを保存すると地図と検索が有効になります。</p></div>'; showView('set'); return; }
+  try { await loadMaps(S.settings.gkey); await initMap(); }
+  catch (e) { $('#deck').innerHTML = '<div class="empty"><b>Google Maps を読み込めませんでした</b><p>APIキーと有効化したAPI（Maps JavaScript / Places (New) / Geocoding）を確認してください。</p></div>'; return; }
+  if (LS('center', null)) setCenter(S.center, null, true); else locateMe();
+})();
+</script>
+</body>
+</html>

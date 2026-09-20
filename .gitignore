@@ -1,0 +1,15 @@
+# 環境変数（API キーはここに置く。絶対にコミットしない）
+.env
+.env.*
+!.env.example
+
+# 依存パッケージ
+node_modules/
+
+# ビルド成果物（Vite 移行後）
+dist/
+
+# OS / エディタ
+.DS_Store
+Thumbs.db
+*.log
