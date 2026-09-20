@@ -20,6 +20,15 @@
   .chips{display:flex;gap:8px;padding:6px 16px 10px;overflow-x:auto;scrollbar-width:none;flex-shrink:0}
   .chips::-webkit-scrollbar{display:none}
   .chips .pill{height:36px;flex-shrink:0}
+  .chips.filters{padding-top:0}
+  .chips.filters .pill{height:32px;font-size:12px;padding:0 12px;gap:5px}
+  .chips.filters .pill.on{background:var(--fav);border-color:var(--fav)}
+  .chips.filters .pill.rain:not(.on){border-color:#4A78B5;color:#2F5C96}
+  .rainbar{margin:12px 16px 0;padding:10px 14px;border-radius:14px;background:#E8F0FA;color:#1F3A5C;font-size:12.5px;line-height:1.5;display:none;align-items:center;gap:10px;flex-shrink:0}
+  .rainbar.on{display:flex}
+  .rainbar span{flex:1}
+  .rainbar button{height:34px;padding:0 12px;border-radius:17px;border:1px solid #4A78B5;background:#fff;color:#2F5C96;font-size:12px;font-weight:700;cursor:pointer;flex-shrink:0}
+  .rainbar button.go{background:#2F5C96;color:#fff}
   .scroll{flex:1;min-height:0;overflow-y:auto;overflow-x:hidden;display:flex;flex-direction:column;scrollbar-width:none;-webkit-overflow-scrolling:touch}
   .scroll::-webkit-scrollbar{display:none}
   #map{height:38vh;min-height:220px;background:#EDE6D8;flex-shrink:0;position:relative}
@@ -94,9 +103,11 @@
     <button class="pill" id="btnLoc">場所を変更</button>
   </div>
   <div class="chips" id="chips"></div>
+  <div class="chips filters" id="filters" aria-label="絞り込み"></div>
   <!-- 探す：地図とカード一覧をまとめてスクロール -->
   <div class="scroll" id="findScroll">
     <div id="map"><div id="mapbadge">—</div></div>
+    <div class="rainbar" id="rainbar"><span>この場所は雨が降っています。徒歩5分以内のお店に絞りますか？</span><button type="button" class="go" id="rainGo">絞る</button><button type="button" id="rainNo">閉じる</button></div>
     <div class="deck" id="deck"></div>
     <div class="hint" id="hint">← 左にスワイプでお気に入り ／ 右にスワイプで削除 →</div>
   </div>
@@ -149,8 +160,10 @@ const S = {
   favs: LS('favs', []), deleted: LS('deleted', []),
   center: LS('center', { lat: 35.6590, lng: 139.7006 }), // 渋谷駅
   radius: LS('radius', 1000), genre: 'おまかせ',
+  filters: LS('filters', { open: false, near: false, smoke: false }), weather: null,
   results: [], queue: [], shown: 3, view: 'find', locName: '渋谷駅周辺'
 };
+const NEAR_M = 400; // 「徒歩5分以内」= 80m/分 × 5
 const PAGE = 3; // 一度に表示する候補数（「さらに表示」で同数ずつ追加）
 // プロキシ既定値は同一オリジン（server.js が静的配信も兼ねるため）。file:// で開いた場合のみ固定ポート
 const DEFAULT_PROXY = location.protocol.startsWith('http') ? location.origin : 'http://localhost:8797';
@@ -219,6 +232,7 @@ async function setCenter(c, name, reverse) {
     } catch { S.locName = '指定地点'; }
   }
   $('#locname').textContent = S.locName;
+  fetchWeather(c); // 検索と並行して天気を取得（失敗しても検索には影響しない）
   await search();
 }
 
@@ -297,7 +311,7 @@ function buildGoogleRequests(gen) {
 async function searchGoogle(gen) {
   const { Place, SearchNearbyRankPreference } = await google.maps.importLibrary('places');
   const base = {
-    fields: ['id', 'displayName', 'location', 'primaryTypeDisplayName', 'priceLevel', 'rating', 'userRatingCount', 'photos', 'editorialSummary', 'reviews', 'regularOpeningHours', 'googleMapsURI'],
+    fields: ['id', 'displayName', 'location', 'primaryTypeDisplayName', 'priceLevel', 'rating', 'userRatingCount', 'photos', 'editorialSummary', 'reviews', 'regularOpeningHours', 'utcOffsetMinutes', 'businessStatus', 'googleMapsURI'],
     locationRestriction: { center: S.center, radius: S.radius }, maxResultCount: 20, language: 'ja', region: 'jp'
   };
   const settled = await Promise.allSettled(buildGoogleRequests(gen).map(r =>
@@ -309,10 +323,16 @@ async function searchGoogle(gen) {
   ok.forEach(r => (r.value.places || []).forEach(p => { if (!seen.has(p.id)) { seen.add(p.id); places.push(p); } }));
   if (gen.kw) places = places.filter(p => (p.displayName || '').includes(gen.kw) || (p.primaryTypeDisplayName || '').includes(gen.kw)).concat(places.filter(p => !(p.displayName || '').includes(gen.kw)));
   const today = (new Date().getDay() + 6) % 7; // weekdayDescriptions は月曜始まり
-  return places.map(p => {
+  // 営業中判定は Place.isOpen()（regularOpeningHours + utcOffsetMinutes からクライアント側で計算。追加課金なし）
+  const openFlags = await Promise.all(places.map(async p => {
+    if (p.businessStatus && p.businessStatus !== 'OPERATIONAL') return false;
+    try { return await p.isOpen(); } catch { return undefined; }
+  }));
+  const items = places.map((p, i) => {
     const loc = p.location; const lat = loc.lat(), lng = loc.lng();
     const rev = p.reviews?.[0]?.text;
     return {
+      openNow: openFlags[i], smoking: undefined, // smoking はホットペッパー突き合わせで付与
       id: 'g:' + p.id, name: p.displayName, genre: p.primaryTypeDisplayName || 'レストラン', lat, lng,
       dish: p.editorialSummary ? p.editorialSummary : (rev ? '口コミ「' + rev.replace(/\s+/g, ' ').slice(0, 42) + (rev.length > 42 ? '…' : '') + '」' : '情報なし'),
       dishLabel: p.editorialSummary ? 'おすすめ' : '口コミ',
@@ -322,29 +342,93 @@ async function searchGoogle(gen) {
       dist: google.maps.geometry.spherical.computeDistanceBetween(S.center, { lat, lng }), source: 'Google'
     };
   });
+  await enrichFromHotPepper(items);
+  return items;
 }
-async function searchHotPepper(gen) {
+// ホットペッパー API を server.js 経由で叩き、共通スキーマに正規化した配列を返す
+async function fetchHotPepper(params) {
   const range = S.radius <= 300 ? 1 : S.radius <= 500 ? 2 : S.radius <= 1000 ? 3 : S.radius <= 2000 ? 4 : 5; // API仕様: 1=300m…5=3km
   const u = new URL('/api/hotpepper', S.settings.proxy);
-  u.searchParams.set('lat', S.center.lat); u.searchParams.set('lng', S.center.lng); u.searchParams.set('range', range); u.searchParams.set('count', 50);
-  if (gen.hp) u.searchParams.set('genre', gen.hp);
-  if (gen.kw) u.searchParams.set('keyword', gen.kw);
+  u.searchParams.set('lat', S.center.lat); u.searchParams.set('lng', S.center.lng); u.searchParams.set('range', range); u.searchParams.set('count', 100);
+  for (const [k, v] of Object.entries(params)) if (v) u.searchParams.set(k, v);
   const r = await fetch(u).catch(() => null);
   if (!r || r.status === 404) throw new Error('ホットペッパー用プロキシ（server.js）に接続できません。静的ホスティング（GitHub Pages 等）では使えないため、設定でソースを Google Places に戻すか、ローカルの server.js の URL をプロキシに指定してください');
   if (!r.ok) throw new Error('プロキシ応答 ' + r.status);
   const j = await r.json(); if (j.results?.error) throw new Error(j.results.error[0]?.message || 'API error');
+  // non_smoking: 「全面禁煙」→ 吸えない ／「一部禁煙」「禁煙席なし」→ 吸える ／ その他・未設定 → 不明
+  const smokingOf = (s) => /全面禁煙/.test(s.non_smoking || '') ? false : /一部禁煙|禁煙席なし/.test(s.non_smoking || '') ? true : undefined;
   return (j.results?.shop || []).map(s => ({
     id: 'hp:' + s.id, name: s.name, genre: s.genre?.name || '', lat: +s.lat, lng: +s.lng,
     dish: s.catch || s.genre?.catch || '情報なし', dishLabel: 'おすすめ', price: s.budget?.name || '価格帯 不明',
     hours: s.open ? s.open.split('（')[0].slice(0, 30) : '', photo: s.photo?.mobile?.l || s.photo?.pc?.l || '', url: s.urls?.pc || '',
+    openNow: undefined, smoking: smokingOf(s), // ホットペッパーに「今営業中」の項目は無い
     dist: google.maps.geometry.spherical.computeDistanceBetween(S.center, { lat: +s.lat, lng: +s.lng }), source: 'ホットペッパーグルメ'
   })).filter(x => x.dist <= S.radius);
+}
+async function searchHotPepper(gen) { return fetchHotPepper({ genre: gen.hp, keyword: gen.kw }); }
+// 店名の突き合わせ用に正規化（全角→半角、空白・記号除去、小文字化）
+const normName = (s) => (s || '').normalize('NFKC').toLowerCase().replace(/[\s　・･\-–—~〜()（）\[\]【】「」『』]/g, '');
+function sameShop(a, b) {
+  if (google.maps.geometry.spherical.computeDistanceBetween({ lat: a.lat, lng: a.lng }, { lat: b.lat, lng: b.lng }) > 80) return false;
+  const x = normName(a.name), y = normName(b.name); if (x.length < 2 || y.length < 2) return false;
+  const head = (x.length <= y.length ? x : y).slice(0, 4);
+  return x.includes(head) && y.includes(head);
+}
+// Google の結果にホットペッパーの喫煙情報（と価格帯の補完）を付与。プロキシが無ければ黙って諦める
+async function enrichFromHotPepper(items) {
+  if (!items.length || /github\.io$/.test(location.hostname)) return;
+  let hp; try { hp = await fetchHotPepper({}); } catch { return; }
+  let hit = 0;
+  for (const it of items) {
+    const m = hp.find(h => sameShop(it, h)); if (!m) continue;
+    it.smoking = m.smoking; it.hpUrl = m.url; if (/不明/.test(it.price)) it.price = m.price; hit++;
+  }
+  if (hit) console.info('ホットペッパー突き合わせ: ' + hit + '/' + items.length + ' 件');
 }
 function rebuildQueue() {
   buildTaste();
   const hide = new Set([...S.favs, ...S.deleted].map(x => x.id));
-  S.queue = S.results.filter(r => !hide.has(r.id));
+  S.queue = S.results.filter(r => !hide.has(r.id) && passFilters(r));
 }
+// 絞り込みはクライアント側で適用（再検索しない）。情報が無い店（undefined）は「該当しない」扱い
+function passFilters(r) {
+  const f = S.filters;
+  if (f.open && r.openNow !== true) return false;
+  if (f.near && r.dist > NEAR_M) return false;
+  if (f.smoke && r.smoking !== true) return false;
+  return true;
+}
+const FILTERS = [
+  { key: 'open', label: '今開いてる', icon: '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg>' },
+  { key: 'near', label: '徒歩5分以内', icon: '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><circle cx="13" cy="4" r="1.5"/><path d="M10 21l2-6M8 12l3-3 3 2 2 3M11 9l-1 5 3 2 1 5"/></svg>' },
+  { key: 'smoke', label: 'タバコ可', icon: '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M3 15h14v4H3zM20 15v4M17 8c2 0 3 1 3 3M15 5c3 0 5 2 5 5"/></svg>' }
+];
+function renderFilters() {
+  const w = $('#filters'); w.innerHTML = '';
+  FILTERS.forEach(f => {
+    const b = document.createElement('button'); b.type = 'button';
+    const rain = f.key === 'near' && S.weather?.rain;
+    b.className = 'pill' + (S.filters[f.key] ? ' on' : '') + (rain ? ' rain' : '');
+    b.innerHTML = f.icon; b.appendChild(document.createTextNode(rain ? '雨・徒歩5分以内' : f.label));
+    b.setAttribute('aria-pressed', String(!!S.filters[f.key]));
+    b.onclick = () => { S.filters[f.key] = !S.filters[f.key]; save('filters', S.filters); renderFilters(); renderRainbar(); rebuildQueue(); renderDeck(); };
+    w.appendChild(b);
+  });
+}
+// ---------- 雨の日（Open-Meteo：キー不要・無料） ----------
+const RAIN_CODES = new Set([51, 53, 55, 56, 57, 61, 63, 65, 66, 67, 80, 81, 82, 95, 96, 99]);
+let rainDismissed = false;
+async function fetchWeather(c) {
+  try {
+    const u = `https://api.open-meteo.com/v1/forecast?latitude=${c.lat}&longitude=${c.lng}&current=precipitation,weather_code&timezone=auto`;
+    const j = await (await fetch(u)).json(); const cur = j.current || {};
+    S.weather = { rain: (cur.precipitation || 0) > 0 || RAIN_CODES.has(cur.weather_code), code: cur.weather_code };
+  } catch { S.weather = null; }
+  rainDismissed = false; renderFilters(); renderRainbar();
+}
+function renderRainbar() { $('#rainbar').classList.toggle('on', !!(S.weather?.rain && !S.filters.near && !rainDismissed)); }
+$('#rainGo').onclick = () => { S.filters.near = true; save('filters', S.filters); renderFilters(); renderRainbar(); rebuildQueue(); renderDeck(); };
+$('#rainNo').onclick = () => { rainDismissed = true; renderRainbar(); };
 
 // ---------- 探すデッキ描画 & スワイプ ----------
 const ICON_HEART = '<svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><path d="M12 21s-7-4.5-9.5-9A5 5 0 0 1 12 6a5 5 0 0 1 9.5 6c-2.5 4.5-9.5 9-9.5 9z"/></svg>';
@@ -358,7 +442,17 @@ function renderDeck(loading, opts = {}) {
   if (loading) { d.innerHTML = '<div class="empty"><b>お店を探しています…</b></div>'; return; }
   const visible = S.queue.slice(0, S.shown);
   if (!visible.length) {
-    d.innerHTML = '<div class="empty"><b>' + (S.results.length ? 'このジャンルの候補は見終わりました' : '候補が見つかりませんでした') + '</b><p>削除したお店は「削除管理」から復旧できます。<br>範囲を広げるか、別のジャンルを試してみてください。</p></div>';
+    const f = S.filters, active = f.open || f.near || f.smoke;
+    let title = S.results.length ? 'このジャンルの候補は見終わりました' : '候補が見つかりませんでした';
+    let hint = '削除したお店は「削除管理」から復旧できます。<br>範囲を広げるか、別のジャンルを試してみてください。';
+    if (S.results.length && active) {
+      title = '絞り込み条件に合うお店がありません';
+      const notes = [];
+      if (f.smoke && !S.results.some(r => r.smoking !== undefined)) notes.push('喫煙情報はホットペッパーのデータにしかありません。ローカルの server.js（プロキシ）経由で自動的に突き合わせます。');
+      if (f.open && !S.results.some(r => r.openNow !== undefined)) notes.push('営業中の判定は Google Places のデータでのみできます。');
+      hint = (notes.length ? notes.join('<br>') + '<br>' : '') + '上の絞り込みを外すと候補が戻ります。';
+    }
+    d.innerHTML = '<div class="empty"><b>' + title + '</b><p>' + hint + '</p></div>';
     return;
   }
   visible.forEach((it, i) => {
@@ -383,7 +477,7 @@ function cardEl(it) {
     <div class="body">
       <div class="ttl"><b></b><span class="dist">${fmtDist(it.dist)}</span></div>
       <div class="dish"><span class="tag">${it.dishLabel}</span><span class="dtext"></span></div>
-      <div class="meta">${isLiked(it) ? '<span class="like">あなた好み</span>' : ''}<span>予算 ${it.price}</span><span>徒歩 約${walk(it.dist)}分</span>${it.rating ? `<span>★${it.rating}</span>` : ''}${it.hours ? `<span>${it.hours}</span>` : ''}${it.url ? `<a href="${it.url}" target="_blank" rel="noopener">詳細を見る</a>` : ''}</div>
+      <div class="meta">${isLiked(it) ? '<span class="like">あなた好み</span>' : ''}<span>予算 ${it.price}</span><span>徒歩 約${walk(it.dist)}分</span>${it.rating ? `<span>★${it.rating}</span>` : ''}${it.openNow === true ? '<span style="color:var(--fav);font-weight:700">営業中</span>' : it.openNow === false ? '<span>営業時間外</span>' : ''}${it.smoking === true ? '<span>喫煙可</span>' : it.smoking === false ? '<span>禁煙</span>' : ''}${it.hours ? `<span>${it.hours}</span>` : ''}${it.url ? `<a href="${it.url}" target="_blank" rel="noopener">詳細を見る</a>` : ''}</div>
     </div>
     <div class="foot">
       <button type="button" class="bfav" aria-label="お気に入りに登録（左スワイプ）">${ICON_HEART}お気に入り</button>
@@ -456,7 +550,7 @@ document.querySelectorAll('nav button').forEach(b => b.onclick = () => showView(
 function showView(v) {
   S.view = v; document.querySelectorAll('nav button').forEach(b => b.classList.toggle('on', b.dataset.v === v));
   const find = v === 'find';
-  ['#chips', '#findScroll'].forEach(s => $(s).style.display = find ? '' : 'none');
+  ['#chips', '#filters', '#findScroll'].forEach(s => $(s).style.display = find ? '' : 'none');
   $('#vFav').classList.toggle('on', v === 'fav'); $('#vTrash').classList.toggle('on', v === 'trash'); $('#vSet').classList.toggle('on', v === 'set');
   if (find && map) google.maps.event.trigger(map, 'resize');
 }
@@ -504,7 +598,7 @@ function locateMe() {
 
 // ---------- 起動 ----------
 (async () => {
-  restoreExpired(); buildTaste(); renderLists();
+  restoreExpired(); buildTaste(); renderLists(); renderFilters();
   if (!S.settings.gkey) { $('#locname').textContent = 'APIキーを設定してください'; $('#deck').innerHTML = '<div class="empty"><b>Google Maps API キーが未設定です</b><p>「設定」タブでキーを保存すると地図と検索が有効になります。</p></div>'; showView('set'); return; }
   try { await loadMaps(S.settings.gkey); await initMap(); }
   catch (e) {

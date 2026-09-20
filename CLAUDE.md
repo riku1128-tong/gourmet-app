@@ -49,6 +49,9 @@ gourmet-app/
 - `renderDeck()` / `cardEl()` / `attachSwipe()` / `fly()` / `act(kind, id)` … キュー先頭 `S.shown` 件（既定 `PAGE`=3）を縦一覧で描画、「さらに表示」で 3 件ずつ追加、各カードにポインタースワイプ（しきい値 100px）と登録／削除ボタン。表示中のカード全部に地図ピンを立てる
 - `renderLists()` … お気に入り一覧・削除管理一覧（復旧ボタン、削除理由と自動復旧予定を表示）
 - `buildTaste()` / `tasteScore()` / `rankOmakase()` … 好みの学習。お気に入り／削除の履歴からジャンル・価格帯・距離帯のスコアを都度計算（別データは持たない）。おまかせの並びは 近さ 0.5 ＋ 好み 0.5 ＋ 乱数 0.3。`isLiked()` で「あなた好み」タグ
+- `passFilters()` / `renderFilters()` / `FILTERS` … 絞り込みチップ（今開いてる／徒歩5分以内＝`NEAR_M` 400m／タバコ可）。`S.filters` に永続化し、再検索せずクライアント側で適用。情報が無い店（`undefined`）は該当しない扱い
+- `fetchWeather()` / `renderRainbar()` … Open-Meteo（キー不要）で検索中心の現在天気を取得し、雨なら「徒歩5分以内に絞る？」バナーと雨アイコン付きチップを表示
+- `fetchHotPepper()` / `enrichFromHotPepper()` / `sameShop()` … Google の結果にホットペッパーの喫煙情報（`non_smoking`）と価格帯の補完を付与。80m 以内＋店名の先頭 4 文字一致で突き合わせ。プロキシが無い環境（GitHub Pages）では黙ってスキップ
 - `askReason()` / `setReason()` / `restoreExpired()` … 削除直後の理由 4 択（高い／遠い／今の気分じゃない／興味なし、`REASONS`）。理由で学習の重み `DEL_W` が変わる。「今の気分じゃない」は 7 日で自動復旧（`expires`）
 - `geocodeQuery()` … 「場所を変更」の地名入力をジオコーディングして `setCenter()`。検索ボタン・Enter・「この場所で探す」（入力があるとき）の3経路から呼ばれる
 - `showView()` … タブ切替（探す／お気に入り／削除管理／設定）。「探す」は `#findScroll`（地図＋カード一覧＋ヒント）を1つのスクロール領域として持ち、ヘッダーとチップは固定。地図は `gestureHandling: 'cooperative'`（1本指=ページスクロール、2本指=地図操作）
@@ -80,6 +83,8 @@ gourmet-app/
 | 営業時間 | regularOpeningHours.weekdayDescriptions[今日] | open |
 | 写真 | photos[0].getURI({maxWidth:800}) | photo.mobile.l |
 | 外部リンク | googleMapsURI | urls.pc |
+| 営業中 | Place.isOpen()（regularOpeningHours + utcOffsetMinutes、businessStatus が OPERATIONAL 以外は false） | （項目なし → 不明） |
+| 喫煙 | （項目なし → ホットペッパー突き合わせで補完） | non_smoking（全面禁煙=不可／一部禁煙・禁煙席なし=可） |
 
 ## 4. デザイン
 
