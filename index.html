@@ -253,7 +253,9 @@ async function searchHotPepper(gen) {
   u.searchParams.set('lat', S.center.lat); u.searchParams.set('lng', S.center.lng); u.searchParams.set('range', range); u.searchParams.set('count', 50);
   if (gen.hp) u.searchParams.set('genre', gen.hp);
   if (gen.kw) u.searchParams.set('keyword', gen.kw);
-  const r = await fetch(u); if (!r.ok) throw new Error('プロキシ応答 ' + r.status);
+  const r = await fetch(u).catch(() => null);
+  if (!r || r.status === 404) throw new Error('ホットペッパー用プロキシ（server.js）に接続できません。静的ホスティング（GitHub Pages 等）では使えないため、設定でソースを Google Places に戻すか、ローカルの server.js の URL をプロキシに指定してください');
+  if (!r.ok) throw new Error('プロキシ応答 ' + r.status);
   const j = await r.json(); if (j.results?.error) throw new Error(j.results.error[0]?.message || 'API error');
   return (j.results?.shop || []).map(s => ({
     id: 'hp:' + s.id, name: s.name, genre: s.genre?.name || '', lat: +s.lat, lng: +s.lng,

@@ -68,3 +68,13 @@ node server.js            # → http://localhost:8797 を開く
 - Places API (New) の呼び出しは従量課金です。開発中は無料枠内で収まりますが、リファラー制限と予算アラートを設定してください。
 - ホットペッパーAPIの `range` は 1=300m / 2=500m / 3=1km / 4=2km / 5=3km。5km 指定時は 3km で検索されます。
 - 本試作は単一HTML＋Node プロキシ。本番化する際はキー管理（Google キーもサーバー側で発行・制限）とユーザー認証を追加してください。
+
+## GitHub Pages で公開する（スマホ実機確認用）
+
+1. リポジトリを **Public** にする（無料プランの Pages は public が条件）
+2. Settings → Pages → Build and deployment → Source: **Deploy from a branch**、Branch: **main** / **/ (root)** → Save
+3. 数分後に https://riku1128-tong.github.io/gourmet-app/ で開ける
+4. Google Cloud Console のキー制限（ウェブサイト）に `https://riku1128-tong.github.io/*` を追加
+5. スマホでページを開き、「設定」タブにキーを入力
+
+> Pages は静的配信のため `server.js`（ホットペッパー用プロキシ）は動きません。Pages 上ではソースを Google Places にしてください。
