@@ -13,3 +13,6 @@ dist/
 .DS_Store
 Thumbs.db
 *.log
+
+# Claude Code のローカル起動設定（マシン固有パスを含む）
+.claude/launch.json
