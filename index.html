@@ -387,7 +387,12 @@ function locateMe() {
   renderLists();
   if (!S.settings.gkey) { $('#locname').textContent = 'APIキーを設定してください'; $('#deck').innerHTML = '<div class="empty"><b>Google Maps API キーが未設定です</b><p>「設定」タブでキーを保存すると地図と検索が有効になります。</p></div>'; showView('set'); return; }
   try { await loadMaps(S.settings.gkey); await initMap(); }
-  catch (e) { $('#deck').innerHTML = '<div class="empty"><b>Google Maps を読み込めませんでした</b><p>APIキーと有効化したAPI（Maps JavaScript / Places (New) / Geocoding）を確認してください。</p></div>'; return; }
+  catch (e) {
+    console.error('Google Maps 初期化エラー', e);
+    $('#deck').innerHTML = '<div class="empty"><b>Google Maps を読み込めませんでした</b><p>APIキーと有効化したAPI（Maps JavaScript / Places (New) / Geocoding）を確認してください。</p><p class="err" style="color:var(--accent);word-break:break-all"></p></div>';
+    $('#deck .err').textContent = 'エラー: ' + (e && e.message ? e.message : String(e));
+    return;
+  }
   if (LS('center', null)) setCenter(S.center, null, true); else locateMe();
 })();
 </script>
