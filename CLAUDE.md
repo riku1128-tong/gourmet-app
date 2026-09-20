@@ -48,7 +48,8 @@ gourmet-app/
 - `rebuildQueue()` … favs/deleted を除外した提示キュー
 - `renderDeck()` / `cardEl()` / `attachSwipe()` / `fly()` / `act(kind, id)` … キュー先頭 `S.shown` 件（既定 `PAGE`=3）を縦一覧で描画、「さらに表示」で 3 件ずつ追加、各カードにポインタースワイプ（しきい値 100px）と登録／削除ボタン。表示中のカード全部に地図ピンを立てる
 - `renderLists()` … お気に入り一覧・削除管理一覧（復旧ボタン）
-- `showView()` … タブ切替（探す／お気に入り／削除管理／設定）
+- `geocodeQuery()` … 「場所を変更」の地名入力をジオコーディングして `setCenter()`。検索ボタン・Enter・「この場所で探す」（入力があるとき）の3経路から呼ばれる
+- `showView()` … タブ切替（探す／お気に入り／削除管理／設定）。「探す」は `#findScroll`（地図＋カード一覧＋ヒント）を1つのスクロール領域として持ち、ヘッダーとチップは固定。地図は `gestureHandling: 'cooperative'`（1本指=ページスクロール、2本指=地図操作）
 
 ### ジャンル → API マッピング
 

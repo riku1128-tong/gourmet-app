@@ -20,10 +20,11 @@
   .chips{display:flex;gap:8px;padding:6px 16px 10px;overflow-x:auto;scrollbar-width:none;flex-shrink:0}
   .chips::-webkit-scrollbar{display:none}
   .chips .pill{height:36px;flex-shrink:0}
+  .scroll{flex:1;min-height:0;overflow-y:auto;overflow-x:hidden;display:flex;flex-direction:column;scrollbar-width:none;-webkit-overflow-scrolling:touch}
+  .scroll::-webkit-scrollbar{display:none}
   #map{height:38vh;min-height:220px;background:#EDE6D8;flex-shrink:0;position:relative}
   #mapbadge{position:absolute;left:12px;bottom:12px;z-index:2;background:rgba(255,255,255,.94);font-size:12px;font-weight:500;padding:6px 10px;border-radius:14px}
-  .deck{flex:1;min-height:0;overflow-y:auto;overflow-x:hidden;padding:12px 16px 16px;display:flex;flex-direction:column;gap:12px;scrollbar-width:none}
-  .deck::-webkit-scrollbar{display:none}
+  .deck{padding:12px 16px 4px;display:flex;flex-direction:column;gap:12px}
   .card{position:relative;flex-shrink:0;background:var(--card);border-radius:20px;box-shadow:0 8px 24px rgba(31,26,23,.10);overflow:hidden;touch-action:pan-y;user-select:none;will-change:transform;transition:transform .25s ease,opacity .25s ease}
   .card.drag{transition:none}
   .card .img{height:34vw;max-height:170px;min-height:120px;background:#9C6A1C center/cover no-repeat;display:flex;align-items:flex-end;justify-content:space-between;padding:12px 16px}
@@ -87,11 +88,12 @@
     <button class="pill" id="btnLoc">場所を変更</button>
   </div>
   <div class="chips" id="chips"></div>
-  <div id="map"><div id="mapbadge">—</div></div>
-
-  <!-- 探す -->
-  <div class="deck" id="deck"></div>
-  <div class="hint" id="hint">← 左にスワイプでお気に入り ／ 右にスワイプで削除 →</div>
+  <!-- 探す：地図とカード一覧をまとめてスクロール -->
+  <div class="scroll" id="findScroll">
+    <div id="map"><div id="mapbadge">—</div></div>
+    <div class="deck" id="deck"></div>
+    <div class="hint" id="hint">← 左にスワイプでお気に入り ／ 右にスワイプで削除 →</div>
+  </div>
 
   <!-- お気に入り -->
   <div class="view" id="vFav"><h1>お気に入り</h1><div class="sub" id="favSub"></div><div id="favList"></div></div>
@@ -185,7 +187,7 @@ async function initMap() {
   geocoder = new google.maps.Geocoder();
   // Map 生成時にコンテナの子要素が消されるため、バッジは先に退避してから戻す
   const badge = $('#mapbadge');
-  map = new Map($('#map'), { center: S.center, zoom: 15, mapId: 'DEMO_MAP_ID', disableDefaultUI: true, gestureHandling: 'greedy', clickableIcons: false });
+  map = new Map($('#map'), { center: S.center, zoom: 15, mapId: 'DEMO_MAP_ID', disableDefaultUI: true, gestureHandling: 'cooperative', clickableIcons: false }); // ページ内に埋め込むため、1本指はページスクロール／2本指で地図操作
   $('#map').appendChild(badge);
   const pin = new PinElement({ background: '#E4572E', borderColor: '#fff', glyphColor: '#fff', scale: 1.1 });
   centerMarker = new AdvancedMarkerElement({ map, position: S.center, content: pin.element, gmpDraggable: true, title: '検索の中心' });
@@ -275,7 +277,7 @@ const ICON_TRASH = '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" 
 function clearShopMarkers() { shopMarkers.forEach(m => { m.map = null; }); shopMarkers = []; }
 // 表示中は S.queue の先頭 S.shown 件。登録／削除で 1 件抜けると次の候補が末尾に繰り上がる
 function renderDeck(loading, opts = {}) {
-  const d = $('#deck'); const scrollTop = d.scrollTop; d.innerHTML = '';
+  const d = $('#deck'), sc = $('#findScroll'); const scrollTop = sc.scrollTop; d.innerHTML = '';
   $('#mapbadge').textContent = '半径' + fmtDist(S.radius) + '・残り ' + S.queue.length + '件';
   clearShopMarkers();
   if (loading) { d.innerHTML = '<div class="empty"><b>お店を探しています…</b></div>'; return; }
@@ -296,7 +298,7 @@ function renderDeck(loading, opts = {}) {
     d.appendChild(b);
   }
   if (opts.scrollToIndex != null && d.children[opts.scrollToIndex]) d.children[opts.scrollToIndex].scrollIntoView({ behavior: 'smooth', block: 'start' });
-  else d.scrollTop = scrollTop;
+  else sc.scrollTop = scrollTop;
 }
 function cardEl(it) {
   const c = document.createElement('div'); c.className = 'card'; c.dataset.id = it.id;
@@ -378,7 +380,7 @@ document.querySelectorAll('nav button').forEach(b => b.onclick = () => showView(
 function showView(v) {
   S.view = v; document.querySelectorAll('nav button').forEach(b => b.classList.toggle('on', b.dataset.v === v));
   const find = v === 'find';
-  ['#chips', '#map', '#deck', '#hint'].forEach(s => $(s).style.display = find ? '' : 'none');
+  ['#chips', '#findScroll'].forEach(s => $(s).style.display = find ? '' : 'none');
   $('#vFav').classList.toggle('on', v === 'fav'); $('#vTrash').classList.toggle('on', v === 'trash'); $('#vSet').classList.toggle('on', v === 'set');
   if (find && map) google.maps.event.trigger(map, 'resize');
 }
@@ -395,13 +397,30 @@ $('#btnSave').onclick = async () => {
 };
 $('#btnLoc').onclick = () => $('#dlgLoc').showModal();
 $('#radius').querySelectorAll('.pill').forEach(b => { b.classList.toggle('on', +b.dataset.r === S.radius); b.onclick = () => { S.radius = +b.dataset.r; save('radius', S.radius); $('#radius').querySelectorAll('.pill').forEach(x => x.classList.toggle('on', x === b)); if (circle) circle.setRadius(S.radius); }; });
-$('#btnGeo').onclick = async () => {
-  const q = $('#q').value.trim(); if (!q || !geocoder) return;
-  try { const r = await geocoder.geocode({ address: q, region: 'jp', language: 'ja' }); const g = r.results?.[0]; if (!g) return toast('見つかりませんでした');
-    $('#dlgLoc').close(); await setCenter({ lat: g.geometry.location.lat(), lng: g.geometry.location.lng() }, g.formatted_address.replace(/^日本、?/, '').replace(/^〒?\d{3}-?\d{4}\s*/, '')); } catch (e) { toast('検索に失敗しました'); }
-};
+// 入力欄の地名をジオコーディングして中心を移動。成功したら true
+async function geocodeQuery() {
+  const q = $('#q').value.trim(); if (!q) return false;
+  if (!geocoder) { toast('地図の読み込みが終わっていません'); return false; }
+  try {
+    const r = await geocoder.geocode({ address: q, region: 'jp', language: 'ja' });
+    const g = r.results?.[0]; if (!g) { toast('「' + q + '」が見つかりませんでした'); return false; }
+    $('#dlgLoc').close(); $('#q').value = '';
+    await setCenter({ lat: g.geometry.location.lat(), lng: g.geometry.location.lng() }, g.formatted_address.replace(/^日本、?/, '').replace(/^〒?\d{3}-?\d{4}\s*/, ''));
+    return true;
+  } catch (e) {
+    // ZERO_RESULTS は例外として投げられることがある
+    toast(/ZERO_RESULTS/.test(String(e)) ? '「' + q + '」が見つかりませんでした' : '検索に失敗しました: ' + (e.message || e));
+    return false;
+  }
+}
+$('#btnGeo').onclick = geocodeQuery;
+$('#q').addEventListener('keydown', e => { if (e.key === 'Enter') { e.preventDefault(); geocodeQuery(); } });
 $('#btnHere').onclick = () => { $('#dlgLoc').close(); locateMe(); };
-$('#btnApply').onclick = () => { $('#dlgLoc').close(); search(); };
+// 「この場所で探す」：地名が入力されていればそれを優先して移動、空ならピン位置・半径で再検索
+$('#btnApply').onclick = async () => {
+  if ($('#q').value.trim()) { await geocodeQuery(); return; }
+  $('#dlgLoc').close(); search();
+};
 function locateMe() {
   if (!navigator.geolocation) return toast('位置情報が使えません');
   navigator.geolocation.getCurrentPosition(p => setCenter({ lat: p.coords.latitude, lng: p.coords.longitude }, null, true), () => { toast('現在地を取得できませんでした'); setCenter(S.center, S.locName); }, { enableHighAccuracy: true, timeout: 8000 });
