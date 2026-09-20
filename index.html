@@ -333,6 +333,7 @@ async function searchGoogle(gen) {
     const rev = p.reviews?.[0]?.text;
     return {
       openNow: openFlags[i], smoking: undefined, // smoking はホットペッパー突き合わせで付与
+      reviews: (p.reviews || []).map(r => r.text).filter(Boolean).slice(0, 5), editorial: p.editorialSummary || '', // 名物抽出の材料
       id: 'g:' + p.id, name: p.displayName, genre: p.primaryTypeDisplayName || 'レストラン', lat, lng,
       dish: p.editorialSummary ? p.editorialSummary : (rev ? '口コミ「' + rev.replace(/\s+/g, ' ').slice(0, 42) + (rev.length > 42 ? '…' : '') + '」' : '情報なし'),
       dishLabel: p.editorialSummary ? 'おすすめ' : '口コミ',
@@ -343,7 +344,36 @@ async function searchGoogle(gen) {
     };
   });
   await enrichFromHotPepper(items);
+  items.forEach(applyCachedDish);
   return items;
+}
+
+// ---------- 名物の一皿（口コミを server.js 経由で Claude に渡して抽出。端末とサーバーの両方でキャッシュ） ----------
+const DISH = LS('dish', {});
+let dishUnavailable = /github\.io$/.test(location.hostname); // 静的ホスティングではサーバーが無い
+const dishInFlight = new Set();
+function applyCachedDish(it) {
+  const d = DISH[it.id]; if (!d || !d.dish) return;
+  it.dish = d.dish + (d.reason ? '・' + d.reason : ''); it.dishLabel = '名物'; it.vibe = d.vibe || '';
+}
+async function fetchDishes(items) {
+  if (dishUnavailable) return;
+  const targets = items.filter(it => it.source === 'Google' && !DISH[it.id] && !dishInFlight.has(it.id) && (it.reviews?.length || it.editorial));
+  await Promise.all(targets.map(async it => {
+    dishInFlight.add(it.id);
+    try {
+      const r = await fetch(new URL('/api/dish', S.settings.proxy), { method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ id: it.id, name: it.name, genre: it.genre, reviews: it.reviews, editorial: it.editorial }) });
+      if (r.status === 404 || r.status === 501) { dishUnavailable = true; return; } // サーバー無し／キー未設定 → このセッションは諦める
+      if (!r.ok) return;
+      const d = await r.json(); DISH[it.id] = { dish: d.dish || '', reason: d.reason || '', vibe: d.vibe || '', at: Date.now() }; save('dish', DISH);
+      if (!d.dish) return;
+      applyCachedDish(it);
+      const c = document.querySelector(`.card[data-id="${CSS.escape(it.id)}"]`);
+      if (c) { c.querySelector('.tag').textContent = it.dishLabel; c.querySelector('.dtext').textContent = it.dish; }
+    } catch { /* ネットワーク失敗は無視（口コミ表示のまま） */ }
+    finally { dishInFlight.delete(it.id); }
+  }));
 }
 // ホットペッパー API を server.js 経由で叩き、共通スキーマに正規化した配列を返す
 async function fetchHotPepper(params) {
@@ -459,6 +489,7 @@ function renderDeck(loading, opts = {}) {
     d.appendChild(cardEl(it));
     if (map && AdvancedMarker) shopMarkers.push(new AdvancedMarker({ map, position: { lat: it.lat, lng: it.lng }, content: shopPin(it.name), zIndex: 100 - i }));
   });
+  fetchDishes(visible); // 表示中のカードだけ名物を問い合わせる（非同期、結果はカードを直接更新）
   const rest = S.queue.length - visible.length;
   if (rest > 0) {
     const b = document.createElement('button'); b.className = 'more'; b.type = 'button';

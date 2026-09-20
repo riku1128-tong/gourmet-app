@@ -22,7 +22,8 @@
 | 地図 | Google Maps JavaScript API + AdvancedMarker（`mapId: 'DEMO_MAP_ID'`） | 本番では自前の Map ID に差し替える |
 | 距離 | `google.maps.geometry.spherical.computeDistanceBetween` | 徒歩分数は 80m/分で概算 |
 | 永続化（現状） | `localStorage`（`gourmet.favs` / `gourmet.deleted` / `gourmet.settings` / `gourmet.center` / `gourmet.radius`） | 試作段階。サーバー同期は未実装 |
-| API キー | Google キーは設定画面でユーザーが入力し localStorage に保存。ホットペッパーのキーはサーバー環境変数 `HOTPEPPER_KEY` のみ | 本番ではキー発行・制限をサーバー側へ |
+| API キー | Google キーは設定画面でユーザーが入力し localStorage に保存。ホットペッパーと Claude のキーはサーバー側のみ（環境変数または `.env` の `HOTPEPPER_KEY` / `ANTHROPIC_API_KEY`） | 本番ではキー発行・制限をサーバー側へ |
+| 名物の一皿 | `server.js` の `POST /api/dish` が Google の口コミ（最大 5 件）を **Claude Opus 5**（`claude-opus-5`、`fallbacks: "default"`、構造化出力、effort low）に渡して `{dish, reason, vibe}` を抽出。SDK ではなく `fetch` で Messages API を直接呼ぶ（依存ゼロ方針・この PC に npm が無いため） | カードの「おすすめ」が口コミ冒頭では弱かった。サーバー（`.cache/dish.json`）と端末（`gourmet.dish`）の両方でキャッシュし、1 店 1 回しか課金しない |
 
 ## 3. 現在のファイル
 
@@ -34,7 +35,7 @@ gourmet-app/
 └── CLAUDE.md    # このファイル
 ```
 
-起動：`node server.js` → http://localhost:8797（ホットペッパーも使うなら `HOTPEPPER_KEY=xxx node server.js`）
+起動：`node server.js` → http://localhost:8797。キーは `.env`（`.env.example` をコピー）か環境変数で渡す。`/api/status` でキーの設定状況を確認できる
 
 ### index.html の構造（主要関数）
 
@@ -52,6 +53,7 @@ gourmet-app/
 - `passFilters()` / `renderFilters()` / `FILTERS` … 絞り込みチップ（今開いてる／徒歩5分以内＝`NEAR_M` 400m／タバコ可）。`S.filters` に永続化し、再検索せずクライアント側で適用。情報が無い店（`undefined`）は該当しない扱い
 - `fetchWeather()` / `renderRainbar()` … Open-Meteo（キー不要）で検索中心の現在天気を取得し、雨なら「徒歩5分以内に絞る？」バナーと雨アイコン付きチップを表示
 - `fetchHotPepper()` / `enrichFromHotPepper()` / `sameShop()` … Google の結果にホットペッパーの喫煙情報（`non_smoking`）と価格帯の補完を付与。80m 以内＋店名の先頭 4 文字一致で突き合わせ。プロキシが無い環境（GitHub Pages）では黙ってスキップ
+- `fetchDishes()` / `applyCachedDish()` … 表示中の Google カードについて `POST /api/dish` を非同期に呼び、結果で `dish`/`dishLabel`（名物）を差し替えてカード DOM を直接更新。404/501（サーバー無し／キー未設定）を受けたらそのセッションは以後呼ばない。GitHub Pages では最初から無効
 - `askReason()` / `setReason()` / `restoreExpired()` … 削除直後の理由 4 択（高い／遠い／今の気分じゃない／興味なし、`REASONS`）。理由で学習の重み `DEL_W` が変わる。「今の気分じゃない」は 7 日で自動復旧（`expires`）
 - `geocodeQuery()` … 「場所を変更」の地名入力をジオコーディングして `setCenter()`。検索ボタン・Enter・「この場所で探す」（入力があるとき）の3経路から呼ばれる
 - `showView()` … タブ切替（探す／お気に入り／削除管理／設定）。「探す」は `#findScroll`（地図＋カード一覧＋ヒント）を1つのスクロール領域として持ち、ヘッダーとチップは固定。地図は `gestureHandling: 'cooperative'`（1本指=ページスクロール、2本指=地図操作）

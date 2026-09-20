@@ -1,17 +1,82 @@
-// ホットペッパーグルメAPI プロキシ + 静的配信（依存パッケージなし / Node 18+）
-// 使い方:  HOTPEPPER_KEY=xxxx node server.js   → http://localhost:8797（PORT=xxxx で変更可）
+// ホットペッパーグルメAPI プロキシ + 名物抽出（Claude API）+ 静的配信（依存パッケージなし / Node 18+）
+// 使い方:  node server.js   → http://localhost:8797（PORT=xxxx で変更可）
+// キーは環境変数か同じフォルダの .env（HOTPEPPER_KEY / ANTHROPIC_API_KEY）。.env は .gitignore 済み
 const http = require('http');
 const fs = require('fs');
 const path = require('path');
 
+loadDotEnv(path.join(__dirname, '.env'));
 const PORT = process.env.PORT || 8797; // 8787 は他ツールと競合したため変更
 const KEY = process.env.HOTPEPPER_KEY || '';
+const ANTHROPIC_KEY = process.env.ANTHROPIC_API_KEY || '';
 const HP = 'https://webservice.recruit.co.jp/hotpepper/gourmet/v1/';
 const ALLOWED = new Set(['lat', 'lng', 'range', 'genre', 'keyword', 'count', 'start', 'order', 'budget']);
 
+// ---------- 名物抽出（Claude Messages API を fetch で直接呼ぶ。SDK を使わないのは依存ゼロ方針のため） ----------
+const CLAUDE_MODEL = 'claude-opus-5';
+const CACHE_FILE = path.join(__dirname, '.cache', 'dish.json');
+const dishCache = loadCache();
+const DISH_SCHEMA = {
+  type: 'object',
+  properties: {
+    dish: { type: 'string', description: '名物と判断した料理名。口コミに実際に出てくるものだけ。判断できなければ空文字' },
+    reason: { type: 'string', description: '口コミを根拠にした一言（40文字以内）' },
+    vibe: { type: 'string', description: '店の雰囲気や向いているシーンを 20 文字以内で' }
+  },
+  required: ['dish', 'reason', 'vibe'],
+  additionalProperties: false
+};
+const DISH_SYSTEM = '飲食店の口コミから、その店に行くなら頼むべき「名物の一皿」を見抜く編集者です。料理名は口コミに実際に登場するものだけを使い、複数の人が薦めているものを優先します。根拠が弱ければ dish は空文字にしてください。日本語で答えます。';
+
+async function extractDish(body) {
+  const id = String(body.id || '');
+  if (!id) throw withStatus(new Error('id が必要です'), 400);
+  if (dishCache[id]) return dishCache[id];
+  if (!ANTHROPIC_KEY) throw withStatus(new Error('サーバーに ANTHROPIC_API_KEY が設定されていません'), 501);
+  const reviews = (Array.isArray(body.reviews) ? body.reviews : []).map(String).filter(Boolean).slice(0, 5);
+  const editorial = body.editorial ? String(body.editorial) : '';
+  if (!reviews.length && !editorial) return { dish: '', reason: '', vibe: '' };
+  const text = [
+    '店名: ' + (body.name || ''), 'ジャンル: ' + (body.genre || ''),
+    editorial ? 'Google の紹介文: ' + editorial : '',
+    '口コミ:', ...reviews.map((r, i) => (i + 1) + '. ' + r.replace(/\s+/g, ' ').slice(0, 600))
+  ].filter(Boolean).join('\n');
+
+  const ctrl = new AbortController(); const timer = setTimeout(() => ctrl.abort(), 40000);
+  let r;
+  try {
+    r = await fetch('https://api.anthropic.com/v1/messages', {
+      method: 'POST', signal: ctrl.signal,
+      headers: {
+        'Content-Type': 'application/json', 'x-api-key': ANTHROPIC_KEY,
+        'anthropic-version': '2023-06-01', 'anthropic-beta': 'server-side-fallback-2026-07-01'
+      },
+      body: JSON.stringify({
+        model: CLAUDE_MODEL, max_tokens: 512, fallbacks: 'default',
+        output_config: { effort: 'low', format: { type: 'json_schema', schema: DISH_SCHEMA } },
+        system: DISH_SYSTEM,
+        messages: [{ role: 'user', content: text }]
+      })
+    });
+  } finally { clearTimeout(timer); }
+  const j = await r.json().catch(() => ({}));
+  if (!r.ok) throw withStatus(new Error((j.error && j.error.message) || 'Claude API エラー ' + r.status), r.status === 429 ? 429 : 502);
+  if (j.stop_reason === 'refusal') return { dish: '', reason: '', vibe: '' }; // 安全側で辞退された場合は空
+  const textBlock = (j.content || []).find(b => b.type === 'text');
+  let out = { dish: '', reason: '', vibe: '' };
+  try {
+    const p = JSON.parse((textBlock && textBlock.text) || '{}');
+    out = { dish: String(p.dish || '').slice(0, 30), reason: String(p.reason || '').slice(0, 60), vibe: String(p.vibe || '').slice(0, 30) };
+  } catch { /* 解析失敗は空扱い */ }
+  dishCache[id] = { ...out, model: j.model, at: Date.now() };
+  saveCache();
+  return dishCache[id];
+}
+
 http.createServer(async (req, res) => {
-  const url = new URL(req.url, `http://${req.headers.host}`);
+  const url = new URL(req.url, 'http://' + req.headers.host);
   res.setHeader('Access-Control-Allow-Origin', '*');
+  res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
   if (req.method === 'OPTIONS') return res.writeHead(204).end();
 
   if (url.pathname === '/api/hotpepper') {
@@ -29,15 +94,55 @@ http.createServer(async (req, res) => {
     return;
   }
 
-  // 静的ファイル（index.html）
+  if (url.pathname === '/api/dish') {
+    if (req.method !== 'POST') return json(res, 405, { error: 'POST のみ' });
+    try {
+      const body = await readJson(req, 64 * 1024);
+      json(res, 200, await extractDish(body));
+    } catch (e) { json(res, e.status || 500, { error: e.message }); }
+    return;
+  }
+
+  if (url.pathname === '/api/status') return json(res, 200, { hotpepper: !!KEY, dish: !!ANTHROPIC_KEY, model: CLAUDE_MODEL, cached: Object.keys(dishCache).length });
+
+  // 静的ファイル（index.html）。ドットで始まるパス（.env / .cache / .git）は配信しない
   const file = path.join(__dirname, url.pathname === '/' ? 'index.html' : url.pathname);
-  if (!file.startsWith(__dirname) || !fs.existsSync(file) || fs.statSync(file).isDirectory()) return res.writeHead(404).end('Not found');
+  if (!file.startsWith(__dirname) || file.includes(path.sep + '.') || !fs.existsSync(file) || fs.statSync(file).isDirectory()) return res.writeHead(404).end('Not found');
   const type = { '.html': 'text/html; charset=utf-8', '.js': 'text/javascript', '.css': 'text/css', '.json': 'application/json' }[path.extname(file)] || 'application/octet-stream';
   res.writeHead(200, { 'Content-Type': type });
   fs.createReadStream(file).pipe(res);
-}).listen(PORT, () => console.log(`http://localhost:${PORT}  (HOTPEPPER_KEY ${KEY ? '設定済み' : '未設定'})`));
+}).listen(PORT, () => console.log('http://localhost:' + PORT + '  (HOTPEPPER_KEY ' + (KEY ? '設定済み' : '未設定') + ' / ANTHROPIC_API_KEY ' + (ANTHROPIC_KEY ? '設定済み' : '未設定') + ')'));
 
 function json(res, status, obj) {
   res.writeHead(status, { 'Content-Type': 'application/json; charset=utf-8' });
   res.end(JSON.stringify(obj));
+}
+function withStatus(err, status) { err.status = status; return err; }
+function readJson(req, limit) {
+  return new Promise((resolve, reject) => {
+    let size = 0; const chunks = [];
+    req.on('data', c => {
+      size += c.length;
+      if (size > limit) { reject(withStatus(new Error('リクエストが大きすぎます'), 413)); req.destroy(); } else chunks.push(c);
+    });
+    req.on('end', () => {
+      try { resolve(JSON.parse(Buffer.concat(chunks).toString('utf8') || '{}')); }
+      catch { reject(withStatus(new Error('JSON が不正です'), 400)); }
+    });
+    req.on('error', reject);
+  });
+}
+// .env（KEY=value 形式、# はコメント）。既に環境変数にある値は上書きしない
+function loadDotEnv(file) {
+  if (!fs.existsSync(file)) return;
+  for (const line of fs.readFileSync(file, 'utf8').split(/\r?\n/)) {
+    if (line.trim().startsWith('#')) continue;
+    const m = line.match(/^\s*([A-Z0-9_]+)\s*=\s*(.*?)\s*$/i); if (!m) continue;
+    if (!(m[1] in process.env)) process.env[m[1]] = m[2].replace(/^["']|["']$/g, '');
+  }
+}
+function loadCache() { try { return JSON.parse(fs.readFileSync(CACHE_FILE, 'utf8')); } catch { return {}; } }
+function saveCache() {
+  try { fs.mkdirSync(path.dirname(CACHE_FILE), { recursive: true }); fs.writeFileSync(CACHE_FILE, JSON.stringify(dishCache)); }
+  catch (e) { console.warn('キャッシュ保存失敗', e.message); }
 }

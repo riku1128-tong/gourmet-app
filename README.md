@@ -25,13 +25,17 @@ node server.js            # → http://localhost:8797 を開く
 ```
 `index.html` を直接ファイルで開いても動きますが、位置情報APIは `http://localhost` または HTTPS が必要です。
 
-### 3. ホットペッパーグルメを使う（任意）
-1. https://webservice.recruit.co.jp/ でAPIキーを取得。
-2. キーを環境変数にして起動：
-   ```bash
-   HOTPEPPER_KEY=あなたのキー node server.js
-   ```
-3. アプリの「設定」→ ソースを「ホットペッパーグルメ」に変更。プロキシURLは既定で `http://localhost:8797`。
+### 3. サーバー側のキー（任意：ホットペッパー／名物抽出）
+`.env.example` を `.env` にコピーして値を入れると、`node server.js` が起動時に読み込みます（`.env` はコミットされません）。
+
+```
+HOTPEPPER_KEY=      # https://webservice.recruit.co.jp/ で取得。喫煙情報・予算の補完と第2ソースに使用
+ANTHROPIC_API_KEY=  # https://console.anthropic.com/ で取得。口コミから「名物の一皿」を抽出
+```
+
+- ホットペッパーを主ソースにするなら、アプリの「設定」→ ソースを「ホットペッパーグルメ」に変更。プロキシURLは既定で同一オリジン。
+- 名物抽出は Claude Opus 5 に口コミ最大 5 件を渡して `名物・根拠` をカードに表示します。1 店あたり約 1〜2 円で、サーバーと端末の両方にキャッシュされるので同じ店に二度は課金されません。
+- `http://localhost:8797/api/status` でどのキーが有効か確認できます。
 
 ## ジャンルの対応
 
