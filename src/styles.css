@@ -148,3 +148,5 @@
   #syncBox details summary{cursor:pointer;padding:6px 0}
   #syncBox details .field{margin-top:8px}
   #syncBox .seg .pill{flex:1;justify-content:center}
+  /* display:flex 等を当てた要素でも hidden 属性を効かせる */
+  [hidden]{display:none !important}

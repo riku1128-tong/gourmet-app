@@ -14,8 +14,13 @@ let lastPull = 0, pulling = false, flushing = false;
 const listeners = new Set<() => void>();
 
 // 接続先: ビルド時の環境変数（GitHub Secrets → VITE_SUPABASE_*）か、設定画面の入力
+// Project URL はドメインまで。ダッシュボードの REST エンドポイント（…/rest/v1/）を貼られても origin に正規化する
+export function normalizeUrl(raw: string): string {
+  const v = (raw || '').trim(); if (!v) return '';
+  try { return new URL(v.startsWith('http://') || v.startsWith('https://') ? v : 'https://' + v).origin; } catch { return ''; }
+}
 export const config = () => ({
-  url: (S.settings.sbUrl || (import.meta.env.VITE_SUPABASE_URL as string | undefined) || '').trim(),
+  url: normalizeUrl(S.settings.sbUrl || (import.meta.env.VITE_SUPABASE_URL as string | undefined) || ''),
   key: (S.settings.sbKey || (import.meta.env.VITE_SUPABASE_ANON_KEY as string | undefined) || '').trim()
 });
 export const isConfigured = (): boolean => { const c = config(); return !!(c.url && c.key); };
