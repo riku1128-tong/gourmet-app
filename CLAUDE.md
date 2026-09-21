@@ -54,8 +54,12 @@ gourmet-app/
 │   │   ├── nav.ts      # showView / initNav（タブとジャンルチップ）
 │   │   ├── settings.ts # initSettings
 │   │   └── icons.ts    # SVG アイコン文字列
+│   ├── pwa.ts          # Service Worker の登録・更新バナー・お気に入り写真のキャッシュ（cachePhotos / uncachePhotos）・isOffline
 │   ├── styles.css
 │   └── *.test.ts       # vitest（正規化・学習・距離の純関数）
+├── public/             # そのまま配信されるファイル: manifest.webmanifest、icons/（scripts/gen-icons.cjs で生成）
+├── sw.template.js      # Service Worker の雛形。vite.config.mts のプラグインが殻の URL 一覧を埋めて dist/sw.js に出力
+├── scripts/gen-icons.cjs  # PWA アイコンを依存なしで生成（Node の zlib で PNG を書く）
 ├── server.js           # ホットペッパー用プロキシ + 名物抽出（Claude）+ dist/ の静的配信（CommonJS、依存なし）
 ├── vite.config.mts     # base は BASE_PATH 環境変数（Pages では /gourmet-app/）。dev では /api を 8797 へプロキシ
 ├── tsconfig.json / package.json / package-lock.json
@@ -74,6 +78,7 @@ gourmet-app/
 - 正規化（`normalizeGooglePlace` / `normalizeHotPepperShop`）と学習（`computeTaste` 等）は**純関数**に保ち、テストは node 環境で回す。`state.ts` はブラウザ API が無くても import できる
 - `S` は単一のミュータブルなオブジェクト。永続化は `save(key, value)` を明示的に呼ぶ（自動保存はしない）
 - 主要な処理の流れ: `setCenter` → `search`（`searchGoogle` / `searchHotPepper` → `enrichFromHotPepper` → `applyCachedDish`）→ `rebuildQueue`（favs/deleted 除外 + `passFilters`）→ `renderDeck`（先頭 `S.shown` 件、ピン表示、`fetchDishes`）
+- PWA: `registerServiceWorker()` は `import.meta.env.PROD` のときだけ。SW のキャッシュ名は `shell-<ビルド時刻>` と `photos-v1`。新ビルドを検知したら `#updatebar` を出し、ユーザーが押したときだけ `skipWaiting` → reload
 - 各機能の詳細（学習の重み、絞り込み、雨、名物、詳細シート、履歴）は以前の記述どおりで、実装場所が上記のファイルに分かれただけ
 
 ### ジャンル → API マッピング
@@ -131,7 +136,7 @@ gourmet-app/
 3. ~~店舗詳細画面~~（完了：ボトムシート。メニューは Places に無いので名物抽出で代替）
 4. ~~プロジェクト分割~~（完了：Vite + TypeScript、Vanilla。GitHub Pages は Actions でビルド配信）
 5. サーバー同期：favs / deleted をユーザー単位で保存（認証込み）。Google キーもサーバー側で発行・リファラ制限
-6. PWA 化（オフラインのお気に入り閲覧、ホーム画面追加）
+6. ~~PWA 化~~（完了：manifest + 自前 SW。殻は事前キャッシュ、ページはネット優先、お気に入りの写真だけ画像キャッシュ、更新バナー、オフライン表示。SW は本番ビルドのみ登録。**Claude Code のブラウザペインは http では SW を登録できない**ので、SW の検証は GitHub Pages（https）で行う）
 7. ~~テスト~~（完了：vitest 22 件。正規化・学習・距離。UI の回帰は Claude Code のブラウザペインで確認）
 
 ## 7. 作業ルール（Claude Code 向け）

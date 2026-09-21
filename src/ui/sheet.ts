@@ -7,6 +7,7 @@ import { ICON_HEART, ICON_LINK, ICON_PHONE, ICON_ROUTE, ICON_TRASH } from './ico
 import { act } from './deck';
 import { renderLists } from './lists';
 import { refresh } from '../search';
+import { uncachePhotos } from '../pwa';
 
 let sheetItem: Shop | null = null, sheetCtx: SheetContext = 'queue';
 
@@ -100,7 +101,7 @@ function renderSheet(): void {
     f.appendChild(btn('bfav', ICON_HEART, 'お気に入り', () => { closeSheet(); act('fav', it.id); }));
     f.appendChild(btn('bdel', ICON_TRASH, '削除', () => { closeSheet(); act('del', it.id); }));
   } else if (sheetCtx === 'fav') {
-    f.appendChild(btn('bdel', ICON_HEART, 'お気に入りを解除', () => { closeSheet(); S.favs = S.favs.filter(x => x.id !== it.id); save('favs', S.favs); refresh(); renderLists(); toast('解除しました'); }));
+    f.appendChild(btn('bdel', ICON_HEART, 'お気に入りを解除', () => { closeSheet(); S.favs = S.favs.filter(x => x.id !== it.id); save('favs', S.favs); uncachePhotos(it); refresh(); renderLists(); toast('解除しました'); }));
   } else {
     f.appendChild(btn('bsolid', '', '復旧する', () => { closeSheet(); S.deleted = S.deleted.filter(x => x.id !== it.id); save('deleted', S.deleted); refresh(); renderLists(); toast('復旧しました'); }));
   }

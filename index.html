@@ -4,6 +4,14 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>グルメレコメンド</title>
+<meta name="theme-color" content="#FBF7F0">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<meta name="apple-mobile-web-app-title" content="グルメ">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="icon" type="image/png" sizes="192x192" href="icons/icon-192.png">
+<link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
 <link href="https://fonts.googleapis.com/css2?family=Zen+Kaku+Gothic+New:wght@400;500;700&display=swap" rel="stylesheet">
 </head>
 <body>
@@ -67,6 +75,7 @@
   <div class="sc" id="sheetBody"></div>
   <div class="foot2" id="sheetFoot"></div>
 </div>
+<div class="updatebar" id="updatebar" role="status"><span>新しいバージョンがあります</span><button type="button" class="go" id="updateGo">再読み込み</button><button type="button" id="updateNo">あとで</button></div>
 <div class="reasons" id="reasons" role="group" aria-label="削除の理由"><span>削除しました。理由を選ぶと「おまかせ」が好みを学習します</span><div class="rbtns"></div></div>
 
 <script type="module" src="/src/main.ts"></script>

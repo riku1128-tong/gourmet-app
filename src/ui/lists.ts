@@ -6,6 +6,7 @@ import { REASONS } from '../taste';
 import { ICON_HEART_LG } from './icons';
 import { openSheet } from './sheet';
 import { refresh } from '../search';
+import { uncachePhotos } from '../pwa';
 
 function rowEl(it: SavedShop, btn: string): HTMLElement {
   const w = document.createElement('div');
@@ -24,7 +25,7 @@ export function renderLists(): void {
     const row = rowEl(it, `<button class="ic" aria-label="お気に入りを解除">${ICON_HEART_LG}</button>`);
     row.querySelector('.l1')!.textContent = it.genre + '・' + it.dish;
     row.querySelector('.l2')!.textContent = '予算 ' + it.price + '・' + fmtDist(it.dist) + '（徒歩約' + walk(it.dist) + '分）';
-    (row.querySelector('.ic') as HTMLElement).onclick = () => { S.favs = S.favs.filter(x => x.id !== it.id); save('favs', S.favs); refresh(); renderLists(); };
+    (row.querySelector('.ic') as HTMLElement).onclick = () => { S.favs = S.favs.filter(x => x.id !== it.id); save('favs', S.favs); uncachePhotos(it); refresh(); renderLists(); };
     (row.querySelector('.th') as HTMLElement).onclick = () => openSheet(it, 'fav'); (row.querySelector('.tx') as HTMLElement).onclick = () => openSheet(it, 'fav');
     fl.appendChild(row);
   });

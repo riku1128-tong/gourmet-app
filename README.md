@@ -90,6 +90,7 @@ ANTHROPIC_API_KEY=  # https://console.anthropic.com/ で取得。口コミから
 3. 数分後に https://riku1128-tong.github.io/gourmet-app/ で開ける
 4. Google Cloud Console のキー制限（ウェブサイト）に `https://riku1128-tong.github.io/*` を追加
 5. スマホでページを開き、「設定」タブにキーを入力
+6. **ホーム画面に追加**（iPhone: 共有 → ホーム画面に追加）すると全画面のアプリとして起動し、オフラインでもお気に入りを見られます（PWA）
 
 > Pages は静的配信のため `server.js` は動きません。ホットペッパー・喫煙情報・名物抽出を Pages 上でも使うには、次の Render デプロイを行います。
 

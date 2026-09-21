@@ -138,7 +138,7 @@ http.createServer(async (req, res) => {
   // ドットで始まるパス（.env / .cache / .git）は配信しない
   const file = path.join(STATIC, url.pathname === '/' ? 'index.html' : url.pathname);
   if (!file.startsWith(STATIC) || file.includes(path.sep + '.') || !fs.existsSync(file) || fs.statSync(file).isDirectory()) return res.writeHead(404).end('Not found');
-  const type = { '.html': 'text/html; charset=utf-8', '.js': 'text/javascript', '.css': 'text/css', '.json': 'application/json', '.map': 'application/json', '.svg': 'image/svg+xml', '.png': 'image/png' }[path.extname(file)] || 'application/octet-stream';
+  const type = { '.html': 'text/html; charset=utf-8', '.js': 'text/javascript', '.css': 'text/css', '.json': 'application/json', '.map': 'application/json', '.svg': 'image/svg+xml', '.png': 'image/png', '.webmanifest': 'application/manifest+json' }[path.extname(file)] || 'application/octet-stream';
   // ハッシュ付きアセットは長期キャッシュ、index.html は毎回確認
   res.writeHead(200, { 'Content-Type': type, 'Cache-Control': /\/assets\//.test(url.pathname) ? 'public, max-age=31536000, immutable' : 'no-cache' });
   fs.createReadStream(file).pipe(res);

@@ -133,3 +133,12 @@
   .reasons span{font-size:12px;font-weight:700;color:var(--mute)}
   .reasons .rbtns{display:flex;gap:6px}
   .reasons .rbtns button{flex:1;height:40px;border-radius:20px;border:1px solid #D9CFC2;background:#fff;color:var(--ink);font-size:12px;font-weight:700;cursor:pointer;white-space:nowrap}
+  /* PWA: 更新バナーとオフライン表示 */
+  .updatebar{position:fixed;left:50%;top:12px;transform:translate(-50%,-140%);width:min(448px,calc(100% - 32px));background:var(--ink);color:#fff;border-radius:16px;padding:10px 12px 10px 16px;display:flex;align-items:center;gap:8px;font-size:13px;box-shadow:0 8px 24px rgba(31,26,23,.25);z-index:30;transition:transform .25s}
+  .updatebar.on{transform:translate(-50%,0)}
+  .updatebar span{flex:1}
+  .updatebar button{height:36px;padding:0 12px;border-radius:18px;border:1px solid rgba(255,255,255,.5);background:transparent;color:#fff;font-size:12px;font-weight:700;cursor:pointer}
+  .updatebar button.go{background:#fff;color:var(--ink);border-color:#fff}
+  .offline{padding:28px 20px;text-align:center;background:#fff;border:1px dashed #D9CFC2;border-radius:20px;display:flex;flex-direction:column;gap:10px;align-items:center;margin:12px 16px 0}
+  .offline b{font-size:16px}.offline p{margin:0;font-size:13px;color:var(--mute);line-height:1.6}
+  .offline .pill{margin-top:4px}

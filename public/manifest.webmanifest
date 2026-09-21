@@ -1,0 +1,17 @@
+{
+  "name": "グルメレコメンド",
+  "short_name": "グルメ",
+  "description": "近くの飲食店をスワイプで選ぶ。左でお気に入り、右で削除。",
+  "lang": "ja",
+  "start_url": "./",
+  "scope": "./",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#FBF7F0",
+  "theme_color": "#FBF7F0",
+  "icons": [
+    { "src": "icons/icon-192.png", "sizes": "192x192", "type": "image/png" },
+    { "src": "icons/icon-512.png", "sizes": "512x512", "type": "image/png" },
+    { "src": "icons/icon-maskable-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" }
+  ]
+}
