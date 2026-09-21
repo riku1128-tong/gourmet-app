@@ -12,6 +12,30 @@ const ANTHROPIC_KEY = process.env.ANTHROPIC_API_KEY || '';
 const HP = 'https://webservice.recruit.co.jp/hotpepper/gourmet/v1/';
 const ALLOWED = new Set(['lat', 'lng', 'range', 'genre', 'keyword', 'count', 'start', 'order', 'budget']);
 
+// ---------- 公開サーバー向けの守り（Origin 制限と回数上限。課金 API を通りすがりに叩かれないため） ----------
+// ALLOWED_ORIGINS はカンマ区切り（例: https://riku1128-tong.github.io）。localhost は常に許可
+const ALLOWED_ORIGINS = new Set((process.env.ALLOWED_ORIGINS || '').split(',').map(s => s.trim()).filter(Boolean));
+const isLocalOrigin = (o) => /^https?:\/\/(localhost|127\.0\.0\.1)(:\d+)?$/.test(o);
+function originAllowed(req) {
+  const origin = req.headers.origin;
+  if (!origin) return /^(localhost|127\.0\.0\.1)(:\d+)?$/.test(req.headers.host || ''); // Origin 無し（curl 等）はローカルからのみ
+  return isLocalOrigin(origin) || ALLOWED_ORIGINS.has(origin);
+}
+// 名物抽出の回数上限（メモリ内。再起動でリセット）: IP ごと 10 分 40 回、全体で 1 日 400 回
+const DISH_LIMIT_PER_IP = { count: +(process.env.DISH_LIMIT_PER_IP || 40), windowMs: 10 * 60 * 1000 };
+const DISH_LIMIT_PER_DAY = +(process.env.DISH_LIMIT_PER_DAY || 400);
+const ipHits = new Map(); let dayHits = { day: '', count: 0 };
+function dishAllowed(req) {
+  const ip = (req.headers['x-forwarded-for'] || '').split(',')[0].trim() || req.socket.remoteAddress || '?';
+  const now = Date.now(), today = new Date().toISOString().slice(0, 10);
+  if (dayHits.day !== today) dayHits = { day: today, count: 0 };
+  if (dayHits.count >= DISH_LIMIT_PER_DAY) return false;
+  const hits = (ipHits.get(ip) || []).filter(t => now - t < DISH_LIMIT_PER_IP.windowMs);
+  if (hits.length >= DISH_LIMIT_PER_IP.count) return false;
+  hits.push(now); ipHits.set(ip, hits); dayHits.count++;
+  return true;
+}
+
 // ---------- 名物抽出（Claude Messages API を fetch で直接呼ぶ。SDK を使わないのは依存ゼロ方針のため） ----------
 const CLAUDE_MODEL = 'claude-opus-5';
 const CACHE_FILE = path.join(__dirname, '.cache', 'dish.json');
@@ -75,9 +99,11 @@ async function extractDish(body) {
 
 http.createServer(async (req, res) => {
   const url = new URL(req.url, 'http://' + req.headers.host);
-  res.setHeader('Access-Control-Allow-Origin', '*');
+  const allowed = originAllowed(req);
+  if (req.headers.origin && allowed) { res.setHeader('Access-Control-Allow-Origin', req.headers.origin); res.setHeader('Vary', 'Origin'); }
   res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
   if (req.method === 'OPTIONS') return res.writeHead(204).end();
+  if (url.pathname.startsWith('/api/') && !allowed) return json(res, 403, { error: 'このオリジンからの利用は許可されていません（ALLOWED_ORIGINS）' });
 
   if (url.pathname === '/api/hotpepper') {
     if (!KEY) return json(res, 500, { results: { error: [{ message: 'サーバーに HOTPEPPER_KEY が設定されていません' }] } });
@@ -98,6 +124,7 @@ http.createServer(async (req, res) => {
     if (req.method !== 'POST') return json(res, 405, { error: 'POST のみ' });
     try {
       const body = await readJson(req, 64 * 1024);
+      if (!dishCache[String(body.id || '')] && !dishAllowed(req)) return json(res, 429, { error: '名物抽出の回数上限に達しました。しばらくしてから再度お試しください' });
       json(res, 200, await extractDish(body));
     } catch (e) { json(res, e.status || 500, { error: e.message }); }
     return;

@@ -1,0 +1,21 @@
+# Render Blueprint（https://render.com/docs/blueprint-spec）
+# Render の「New → Blueprint」でこのリポジトリを選ぶと、以下の設定でサーバーが作られる。
+# キーは管理画面で入力する（sync: false）。コードやこのファイルには書かない。
+services:
+  - type: web
+    name: gourmet-app-server
+    runtime: node
+    plan: free
+    region: singapore
+    buildCommand: ""
+    startCommand: node server.js
+    healthCheckPath: /api/status
+    envVars:
+      - key: NODE_VERSION
+        value: "22"
+      - key: HOTPEPPER_KEY
+        sync: false
+      - key: ANTHROPIC_API_KEY
+        sync: false
+      - key: ALLOWED_ORIGINS
+        value: https://riku1128-tong.github.io

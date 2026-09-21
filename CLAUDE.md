@@ -23,16 +23,20 @@
 | 距離 | `google.maps.geometry.spherical.computeDistanceBetween` | 徒歩分数は 80m/分で概算 |
 | 永続化（現状） | `localStorage`（`gourmet.favs` / `gourmet.deleted` / `gourmet.settings` / `gourmet.center` / `gourmet.radius`） | 試作段階。サーバー同期は未実装 |
 | API キー | Google キーは設定画面でユーザーが入力し localStorage に保存。ホットペッパーと Claude のキーはサーバー側のみ（環境変数または `.env` の `HOTPEPPER_KEY` / `ANTHROPIC_API_KEY`） | 本番ではキー発行・制限をサーバー側へ |
+| サーバーの公開先 | **Render**（無料枠、`render.yaml` の Blueprint、サービス名 `gourmet-app-server`）。アプリは GitHub Pages 上では既定で `PUBLIC_SERVER` を向き、起動時に `probeServer()` で `/api/status` を叩いて使える機能を判定。`server.js` は `ALLOWED_ORIGINS` で Origin を制限し、名物抽出に IP／日次の回数上限を持つ | Pages は静的配信で server.js が動かない。無料枠のスリープ（初回 1 分）は起動時の probe で吸収 |
 | 名物の一皿 | `server.js` の `POST /api/dish` が Google の口コミ（最大 5 件）を **Claude Opus 5**（`claude-opus-5`、`fallbacks: "default"`、構造化出力、effort low）に渡して `{dish, reason, vibe}` を抽出。SDK ではなく `fetch` で Messages API を直接呼ぶ（依存ゼロ方針・この PC に npm が無いため） | カードの「おすすめ」が口コミ冒頭では弱かった。サーバー（`.cache/dish.json`）と端末（`gourmet.dish`）の両方でキャッシュし、1 店 1 回しか課金しない |
 
 ## 3. 現在のファイル
 
 ```
 gourmet-app/
-├── index.html   # アプリ本体（単一ファイル：HTML + CSS + JS、フレームワークなし）
-├── server.js    # ホットペッパー用プロキシ + 静的配信（Node 18+、依存なし）
-├── README.md    # セットアップ手順・API マッピング表
-└── CLAUDE.md    # このファイル
+├── index.html    # アプリ本体（単一ファイル：HTML + CSS + JS、フレームワークなし）
+├── server.js     # ホットペッパー用プロキシ + 名物抽出（Claude）+ 静的配信（Node 18+、依存なし）
+├── render.yaml   # Render の Blueprint（サーバー公開用）
+├── package.json  # 依存なし。Render の Node 検出と start スクリプトのため
+├── .env.example  # サーバー側キーの雛形（.env は gitignore）
+├── README.md     # セットアップ手順・API マッピング表・Pages / Render の公開手順
+└── CLAUDE.md     # このファイル
 ```
 
 起動：`node server.js` → http://localhost:8797。キーは `.env`（`.env.example` をコピー）か環境変数で渡す。`/api/status` でキーの設定状況を確認できる

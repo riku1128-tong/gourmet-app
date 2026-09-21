@@ -127,7 +127,7 @@
     <div class="field"><label for="source">グルメ情報のソース</label>
       <select id="source"><option value="google">Google Places（ブラウザから直接）</option><option value="hotpepper">ホットペッパーグルメ（プロキシ経由）</option></select>
       <small>ぐるなびAPIは2021年に提供終了のため、価格帯・キャッチコピーが揃うホットペッパーグルメAPIを第2ソースにしています。CORS非対応のため同梱の server.js を経由します。</small></div>
-    <div class="field" id="proxyField"><label for="proxy">プロキシURL（ホットペッパー利用時）</label><input id="proxy" type="url" placeholder="http://localhost:8797"></div>
+    <div class="field" id="proxyField"><label for="proxy">サーバーURL（ホットペッパー・名物抽出・喫煙情報）</label><input id="proxy" type="url" placeholder="https://gourmet-app-server.onrender.com"><small id="srvStatus">サーバー: 未確認</small></div>
     <button class="primary" id="btnSave">保存して再検索</button>
     <div class="note">Google Places の「おすすめ」は Google のエディトリアル要約または口コミの冒頭を、ホットペッパーは店舗のキャッチコピーを表示します。価格帯は Google が4段階の目安、ホットペッパーは店舗登録の予算です。</div>
   </div>
@@ -165,9 +165,27 @@ const S = {
 };
 const NEAR_M = 400; // 「徒歩5分以内」= 80m/分 × 5
 const PAGE = 3; // 一度に表示する候補数（「さらに表示」で同数ずつ追加）
-// プロキシ既定値は同一オリジン（server.js が静的配信も兼ねるため）。file:// で開いた場合のみ固定ポート
-const DEFAULT_PROXY = location.protocol.startsWith('http') ? location.origin : 'http://localhost:8797';
-if (!S.settings.proxy || S.settings.proxy === 'http://localhost:8787') S.settings.proxy = DEFAULT_PROXY;
+// サーバー（server.js）の既定 URL: ローカル配信なら同一オリジン、GitHub Pages なら Render、file:// なら固定ポート
+const PUBLIC_SERVER = 'https://gourmet-app-server.onrender.com';
+const ON_PAGES = /github\.io$/.test(location.hostname);
+const DEFAULT_PROXY = ON_PAGES ? PUBLIC_SERVER : location.protocol.startsWith('http') ? location.origin : 'http://localhost:8797';
+if (!S.settings.proxy || S.settings.proxy === 'http://localhost:8787' || (ON_PAGES && S.settings.proxy === location.origin)) S.settings.proxy = DEFAULT_PROXY;
+// 起動時に /api/status を 1 回叩いて、サーバーで使える機能を把握する（Render 無料枠のスリープ解除も兼ねる）
+const SERVER = { checked: false, ok: false, hotpepper: false, dish: false };
+async function probeServer() {
+  const el = document.querySelector('#srvStatus'); if (el) el.textContent = 'サーバー: 確認中…（スリープ中なら1分ほどかかります）';
+  try {
+    const r = await fetch(new URL('/api/status', S.settings.proxy), { signal: AbortSignal.timeout(90000) });
+    const j = r.ok ? await r.json() : {};
+    Object.assign(SERVER, { checked: true, ok: r.ok, hotpepper: !!j.hotpepper, dish: !!j.dish });
+  } catch { Object.assign(SERVER, { checked: true, ok: false, hotpepper: false, dish: false }); }
+  if (el) el.textContent = SERVER.ok ? `サーバー: 接続OK（ホットペッパー ${SERVER.hotpepper ? '有効' : '無効'} ／ 名物抽出 ${SERVER.dish ? '有効' : '無効'}）` : 'サーバー: 接続できません（ホットペッパー・名物抽出・喫煙情報は使えません）';
+  // 検索が先に終わっていた場合は、後追いで補完する
+  if (SERVER.ok && S.results.length) {
+    if (SERVER.hotpepper) enrichFromHotPepper(S.results).then(() => { rebuildQueue(); renderDeck(); }); // renderDeck が名物も取りに行く
+    else if (SERVER.dish) fetchDishes(S.queue.slice(0, S.shown));
+  }
+}
 
 const GENRES = [
   { label: 'おまかせ', g: ['restaurant'], hp: '' },
@@ -350,21 +368,20 @@ async function searchGoogle(gen) {
 
 // ---------- 名物の一皿（口コミを server.js 経由で Claude に渡して抽出。端末とサーバーの両方でキャッシュ） ----------
 const DISH = LS('dish', {});
-let dishUnavailable = /github\.io$/.test(location.hostname); // 静的ホスティングではサーバーが無い
 const dishInFlight = new Set();
 function applyCachedDish(it) {
   const d = DISH[it.id]; if (!d || !d.dish) return;
   it.dish = d.dish + (d.reason ? '・' + d.reason : ''); it.dishLabel = '名物'; it.vibe = d.vibe || '';
 }
 async function fetchDishes(items) {
-  if (dishUnavailable) return;
+  if (!SERVER.dish) return; // サーバー無し／キー未設定（probeServer の結果）
   const targets = items.filter(it => it.source === 'Google' && !DISH[it.id] && !dishInFlight.has(it.id) && (it.reviews?.length || it.editorial));
   await Promise.all(targets.map(async it => {
     dishInFlight.add(it.id);
     try {
       const r = await fetch(new URL('/api/dish', S.settings.proxy), { method: 'POST', headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ id: it.id, name: it.name, genre: it.genre, reviews: it.reviews, editorial: it.editorial }) });
-      if (r.status === 404 || r.status === 501) { dishUnavailable = true; return; } // サーバー無し／キー未設定 → このセッションは諦める
+      if (r.status === 404 || r.status === 501 || r.status === 403) { SERVER.dish = false; return; } // サーバー無し／キー未設定／Origin 不許可 → 以後呼ばない
       if (!r.ok) return;
       const d = await r.json(); DISH[it.id] = { dish: d.dish || '', reason: d.reason || '', vibe: d.vibe || '', at: Date.now() }; save('dish', DISH);
       if (!d.dish) return;
@@ -406,7 +423,7 @@ function sameShop(a, b) {
 }
 // Google の結果にホットペッパーの喫煙情報（と価格帯の補完）を付与。プロキシが無ければ黙って諦める
 async function enrichFromHotPepper(items) {
-  if (!items.length || /github\.io$/.test(location.hostname)) return;
+  if (!items.length || !SERVER.hotpepper) return;
   let hp; try { hp = await fetchHotPepper({}); } catch { return; }
   let hit = 0;
   for (const it of items) {
@@ -478,7 +495,7 @@ function renderDeck(loading, opts = {}) {
     if (S.results.length && active) {
       title = '絞り込み条件に合うお店がありません';
       const notes = [];
-      if (f.smoke && !S.results.some(r => r.smoking !== undefined)) notes.push('喫煙情報はホットペッパーのデータにしかありません。ローカルの server.js（プロキシ）経由で自動的に突き合わせます。');
+      if (f.smoke && !S.results.some(r => r.smoking !== undefined)) notes.push(SERVER.hotpepper ? '付近のお店はホットペッパーに喫煙情報が登録されていないようです。' : '喫煙情報はホットペッパーのデータにしかありません。設定の「サーバーURL」先に HOTPEPPER_KEY が設定されていると自動で突き合わせます。');
       if (f.open && !S.results.some(r => r.openNow !== undefined)) notes.push('営業中の判定は Google Places のデータでのみできます。');
       hint = (notes.length ? notes.join('<br>') + '<br>' : '') + '上の絞り込みを外すと候補が戻ります。';
     }
@@ -592,8 +609,10 @@ GENRES.forEach(g => { const b = document.createElement('button'); b.className = 
 $('#gkey').value = S.settings.gkey; $('#source').value = S.settings.source; $('#proxy').value = S.settings.proxy;
 $('#btnSave').onclick = async () => {
   const changedKey = $('#gkey').value.trim() !== S.settings.gkey;
+  const changedProxy = ($('#proxy').value.trim() || DEFAULT_PROXY) !== S.settings.proxy;
   S.settings = { gkey: $('#gkey').value.trim(), source: $('#source').value, proxy: $('#proxy').value.trim() || DEFAULT_PROXY }; save('settings', S.settings);
   if (changedKey) { location.reload(); return; }
+  if (changedProxy) { $('#proxy').value = S.settings.proxy; probeServer(); }
   showView('find'); search();
 };
 $('#btnLoc').onclick = () => $('#dlgLoc').showModal();
@@ -629,7 +648,7 @@ function locateMe() {
 
 // ---------- 起動 ----------
 (async () => {
-  restoreExpired(); buildTaste(); renderLists(); renderFilters();
+  restoreExpired(); buildTaste(); renderLists(); renderFilters(); probeServer();
   if (!S.settings.gkey) { $('#locname').textContent = 'APIキーを設定してください'; $('#deck').innerHTML = '<div class="empty"><b>Google Maps API キーが未設定です</b><p>「設定」タブでキーを保存すると地図と検索が有効になります。</p></div>'; showView('set'); return; }
   try { await loadMaps(S.settings.gkey); await initMap(); }
   catch (e) {

@@ -88,4 +88,20 @@ ANTHROPIC_API_KEY=  # https://console.anthropic.com/ で取得。口コミから
 4. Google Cloud Console のキー制限（ウェブサイト）に `https://riku1128-tong.github.io/*` を追加
 5. スマホでページを開き、「設定」タブにキーを入力
 
-> Pages は静的配信のため `server.js`（ホットペッパー用プロキシ）は動きません。Pages 上ではソースを Google Places にしてください。
+> Pages は静的配信のため `server.js` は動きません。ホットペッパー・喫煙情報・名物抽出を Pages 上でも使うには、次の Render デプロイを行います。
+
+## サーバー（server.js）を Render で公開する
+
+`render.yaml`（Blueprint）を同梱しているので、Render 側の操作は最小です。
+
+1. https://dashboard.render.com/ でアカウント作成（GitHub 連携）
+2. **New → Blueprint** → リポジトリ `riku1128-tong/gourmet-app` を選ぶ → `render.yaml` が読み込まれる
+3. 環境変数の入力欄に `HOTPEPPER_KEY` と `ANTHROPIC_API_KEY` を入れて **Apply**（不要なキーは空でよい）
+4. 数分でデプロイされ、`https://gourmet-app-server.onrender.com` のような URL が出る（名前が取られていると末尾に文字が付く）
+5. アプリ（Pages 版）の「設定」→「サーバーURL」にその URL を入れて保存。`gourmet-app-server` そのままなら既定値で繋がる
+
+補足:
+- 無料プランは 15 分アクセスが無いとスリープし、次の初回応答に 1 分ほどかかります。アプリは起動時に `/api/status` を叩いて起こします。
+- `ALLOWED_ORIGINS`（既定 `https://riku1128-tong.github.io`）以外のオリジンからの `/api/*` は 403。localhost は常に許可。
+- 名物抽出には回数上限があります（IP ごと 10 分 40 回、全体で 1 日 400 回。`DISH_LIMIT_PER_IP` / `DISH_LIMIT_PER_DAY` で変更）。
+- 無料プランのディスクは再起動で消えるため、サーバー側キャッシュ（`.cache/dish.json`）は永続しません。端末側キャッシュは残ります。
