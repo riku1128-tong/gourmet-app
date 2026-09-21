@@ -18,12 +18,15 @@
 2. APIキーを作成し、「HTTPリファラー」で `http://localhost:8797/*` などに制限。
 3. アプリの「設定」タブにキーを貼り付けて保存。
 
-### 2. 起動
+### 2. 起動（Node 18 以上）
 ```bash
 cd gourmet-app
-node server.js            # → http://localhost:8797 を開く
+npm install               # 初回のみ（開発ツール。実行時の依存はありません）
+node server.js            # API サーバー（8797）。別ターミナルで起動したままにする
+npm run dev               # → http://localhost:5173 を開く（/api は 8797 へ転送されます）
 ```
-`index.html` を直接ファイルで開いても動きますが、位置情報APIは `http://localhost` または HTTPS が必要です。
+本番相当で確認するなら `npm run build` のあと http://localhost:8797 を開きます（server.js が `dist/` を配信）。
+`npm test` で正規化・学習ロジックのユニットテストが走ります。
 
 ### 3. サーバー側のキー（任意：ホットペッパー／名物抽出）
 `.env.example` を `.env` にコピーして値を入れると、`node server.js` が起動時に読み込みます（`.env` はコミットされません）。
@@ -83,7 +86,7 @@ ANTHROPIC_API_KEY=  # https://console.anthropic.com/ で取得。口コミから
 ## GitHub Pages で公開する（スマホ実機確認用）
 
 1. リポジトリを **Public** にする（無料プランの Pages は public が条件）
-2. Settings → Pages → Build and deployment → Source: **Deploy from a branch**、Branch: **main** / **/ (root)** → Save
+2. Settings → Pages → Build and deployment → Source: **GitHub Actions**（`.github/workflows/pages.yml` が main への push ごとにテスト→ビルド→デプロイする）
 3. 数分後に https://riku1128-tong.github.io/gourmet-app/ で開ける
 4. Google Cloud Console のキー制限（ウェブサイト）に `https://riku1128-tong.github.io/*` を追加
 5. スマホでページを開き、「設定」タブにキーを入力

@@ -1,8 +1,22 @@
 {
   "name": "gourmet-app",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "private": true,
   "description": "位置情報ベースのグルメレコメンド（Google Places + ホットペッパー + Claude 名物抽出）",
-  "engines": { "node": ">=18" },
-  "scripts": { "start": "node server.js" }
+  "engines": {
+    "node": ">=18"
+  },
+  "scripts": {
+    "dev": "vite",
+    "build": "tsc --noEmit && vite build",
+    "preview": "vite preview",
+    "test": "vitest run",
+    "start": "node server.js"
+  },
+  "devDependencies": {
+    "@types/google.maps": "^3.66.3",
+    "typescript": "^7.0.2",
+    "vite": "^8.3.0",
+    "vitest": "^5.0.1"
+  }
 }

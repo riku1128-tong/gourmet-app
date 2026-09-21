@@ -1,5 +1,6 @@
 // ホットペッパーグルメAPI プロキシ + 名物抽出（Claude API）+ 静的配信（依存パッケージなし / Node 18+）
-// 使い方:  node server.js   → http://localhost:8797（PORT=xxxx で変更可）
+// 使い方:  npm run build && node server.js   → http://localhost:8797（PORT=xxxx で変更可）
+//          開発中は `npm run dev`（Vite、5173）を使うと /api がここへ転送される
 // キーは環境変数か同じフォルダの .env（HOTPEPPER_KEY / ANTHROPIC_API_KEY）。.env は .gitignore 済み
 const http = require('http');
 const fs = require('fs');
@@ -9,6 +10,7 @@ loadDotEnv(path.join(__dirname, '.env'));
 const PORT = process.env.PORT || 8797; // 8787 は他ツールと競合したため変更
 const KEY = process.env.HOTPEPPER_KEY || '';
 const ANTHROPIC_KEY = process.env.ANTHROPIC_API_KEY || '';
+const STATIC = path.join(__dirname, 'dist');
 const HP = 'https://webservice.recruit.co.jp/hotpepper/gourmet/v1/';
 const ALLOWED = new Set(['lat', 'lng', 'range', 'genre', 'keyword', 'count', 'start', 'order', 'budget']);
 
@@ -132,11 +134,13 @@ http.createServer(async (req, res) => {
     return;
   }
 
-  // 静的ファイル（index.html）。ドットで始まるパス（.env / .cache / .git）は配信しない
-  const file = path.join(__dirname, url.pathname === '/' ? 'index.html' : url.pathname);
-  if (!file.startsWith(__dirname) || file.includes(path.sep + '.') || !fs.existsSync(file) || fs.statSync(file).isDirectory()) return res.writeHead(404).end('Not found');
-  const type = { '.html': 'text/html; charset=utf-8', '.js': 'text/javascript', '.css': 'text/css', '.json': 'application/json' }[path.extname(file)] || 'application/octet-stream';
-  res.writeHead(200, { 'Content-Type': type });
+  // 静的ファイル: `vite build` の成果物 dist/ を配信（無ければ 404。開発中は `npm run dev` の Vite を使う）
+  // ドットで始まるパス（.env / .cache / .git）は配信しない
+  const file = path.join(STATIC, url.pathname === '/' ? 'index.html' : url.pathname);
+  if (!file.startsWith(STATIC) || file.includes(path.sep + '.') || !fs.existsSync(file) || fs.statSync(file).isDirectory()) return res.writeHead(404).end('Not found');
+  const type = { '.html': 'text/html; charset=utf-8', '.js': 'text/javascript', '.css': 'text/css', '.json': 'application/json', '.map': 'application/json', '.svg': 'image/svg+xml', '.png': 'image/png' }[path.extname(file)] || 'application/octet-stream';
+  // ハッシュ付きアセットは長期キャッシュ、index.html は毎回確認
+  res.writeHead(200, { 'Content-Type': type, 'Cache-Control': /\/assets\//.test(url.pathname) ? 'public, max-age=31536000, immutable' : 'no-cache' });
   fs.createReadStream(file).pipe(res);
 }).listen(PORT, () => console.log('http://localhost:' + PORT + '  (HOTPEPPER_KEY ' + (KEY ? '設定済み' : '未設定') + ' / ANTHROPIC_API_KEY ' + (ANTHROPIC_KEY ? '設定済み' : '未設定') + ')'));
 

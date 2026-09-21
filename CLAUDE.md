@@ -20,49 +20,61 @@
 | 第2ソース | **ホットペッパーグルメ Web サービス** | ぐるなび API は 2021 年に提供終了。ホットペッパーは予算（価格帯）とキャッチコピー（おすすめ）が公式データで揃う |
 | ホットペッパーの呼び出し方 | Node プロキシ `server.js` 経由 | CORS 非対応のため |
 | 地図 | Google Maps JavaScript API + AdvancedMarker（`mapId: 'DEMO_MAP_ID'`） | 本番では自前の Map ID に差し替える |
-| 距離 | `google.maps.geometry.spherical.computeDistanceBetween` | 徒歩分数は 80m/分で概算 |
+| 距離 | 自前の Haversine（`src/geo.ts` の `distanceM`） | Google の geometry と同等の球面距離。純関数にして正規化をテストするため。徒歩分数は 80m/分で概算 |
 | 永続化（現状） | `localStorage`（`gourmet.favs` / `gourmet.deleted` / `gourmet.settings` / `gourmet.center` / `gourmet.radius`） | 試作段階。サーバー同期は未実装 |
 | API キー | Google キーは設定画面でユーザーが入力し localStorage に保存。ホットペッパーと Claude のキーはサーバー側のみ（環境変数または `.env` の `HOTPEPPER_KEY` / `ANTHROPIC_API_KEY`） | 本番ではキー発行・制限をサーバー側へ |
 | サーバーの公開先 | **Render**（無料枠、`render.yaml` の Blueprint、サービス名 `gourmet-app-server`）。アプリは GitHub Pages 上では既定で `PUBLIC_SERVER` を向き、起動時に `probeServer()` で `/api/status` を叩いて使える機能を判定。`server.js` は `ALLOWED_ORIGINS` で Origin を制限し、名物抽出に IP／日次の回数上限を持つ | Pages は静的配信で server.js が動かない。無料枠のスリープ（初回 1 分）は起動時の probe で吸収 |
 | 名物の一皿 | `server.js` の `POST /api/dish` が Google の口コミ（最大 5 件）を **Claude Opus 5**（`claude-opus-5`、`fallbacks: "default"`、構造化出力、effort low）に渡して `{dish, reason, vibe}` を抽出。SDK ではなく `fetch` で Messages API を直接呼ぶ（依存ゼロ方針・この PC に npm が無いため） | カードの「おすすめ」が口コミ冒頭では弱かった。サーバー（`.cache/dish.json`）と端末（`gourmet.dish`）の両方でキャッシュし、1 店 1 回しか課金しない |
 
-## 3. 現在のファイル
+## 3. 現在のファイル（Vite + TypeScript、フレームワークなし）
 
 ```
 gourmet-app/
-├── index.html    # アプリ本体（単一ファイル：HTML + CSS + JS、フレームワークなし）
-├── server.js     # ホットペッパー用プロキシ + 名物抽出（Claude）+ 静的配信（Node 18+、依存なし）
-├── render.yaml   # Render の Blueprint（サーバー公開用）
-├── package.json  # 依存なし。Render の Node 検出と start スクリプトのため
-├── .env.example  # サーバー側キーの雛形（.env は gitignore）
-├── README.md     # セットアップ手順・API マッピング表・Pages / Render の公開手順
-└── CLAUDE.md     # このファイル
+├── index.html          # Vite のエントリ（マークアップのみ。スクリプトは src/main.ts）
+├── src/
+│   ├── main.ts         # 起動: 各 UI の init → サーバー確認 → Maps 読み込み → 初回検索。DEV では window.__app に内部を公開
+│   ├── state.ts        # S（アプリ状態）、LS/save（localStorage、キー名は旧来と互換）、SERVER、DISH、GENRES、定数、$ / el / toast
+│   ├── types.ts        # Shop / SavedShop / Settings / Filters など
+│   ├── geo.ts          # distanceM（Haversine）、fmtDist、walk。Google の geometry ライブラリは使わない（純関数でテストするため）
+│   ├── taste.ts        # 好みの学習: computeTaste / scoreWith / rankWith（純関数）と S に結び付けた buildTaste / tasteScore / isLiked / rankOmakase、REASONS、restoreExpired
+│   ├── search.ts       # setCenter → search → rebuildQueue / passFilters / refresh
+│   ├── maps.ts         # loadMaps / initMap / ピン（showShopMarkers）/ moveCenter / reverseGeocode / geocodeAddress
+│   ├── api/
+│   │   ├── google.ts   # buildGoogleRequests / normalizeGooglePlace（純関数）/ searchGoogle、PRICE、OMAKASE_TYPES
+│   │   ├── hotpepper.ts# normalizeHotPepperShop / smokingOf / rangeOf / sameShop（純関数）/ fetchHotPepper / enrichFromHotPepper
+│   │   ├── server.ts   # probeServer（/api/status）/ fetchDishes（/api/dish）/ applyCachedDish
+│   │   └── weather.ts  # fetchWeather（Open-Meteo）
+│   ├── ui/
+│   │   ├── deck.ts     # renderDeck / cardEl / attachSwipe / fly / act
+│   │   ├── sheet.ts    # 店舗詳細シート openSheet / closeSheet / initSheet / routeURL
+│   │   ├── lists.ts    # お気に入り・削除管理の一覧 renderLists / initLists
+│   │   ├── filters.ts  # 絞り込みチップと雨バナー renderFilters / renderRainbar / initFilters
+│   │   ├── reasons.ts  # 削除理由バー askReason / setReason
+│   │   ├── location.ts # 場所ダイアログ・履歴・現在地 geocodeQuery / locateMe / pushHistory / initLocation
+│   │   ├── nav.ts      # showView / initNav（タブとジャンルチップ）
+│   │   ├── settings.ts # initSettings
+│   │   └── icons.ts    # SVG アイコン文字列
+│   ├── styles.css
+│   └── *.test.ts       # vitest（正規化・学習・距離の純関数）
+├── server.js           # ホットペッパー用プロキシ + 名物抽出（Claude）+ dist/ の静的配信（CommonJS、依存なし）
+├── vite.config.mts     # base は BASE_PATH 環境変数（Pages では /gourmet-app/）。dev では /api を 8797 へプロキシ
+├── tsconfig.json / package.json / package-lock.json
+├── render.yaml         # Render の Blueprint（buildCommand: npm ci && npm run build）
+├── .github/workflows/pages.yml  # main への push で test → build → GitHub Pages へデプロイ
+├── .env.example        # サーバー側キーの雛形（.env は gitignore）
+├── README.md / CLAUDE.md
 ```
 
-起動：`node server.js` → http://localhost:8797。キーは `.env`（`.env.example` をコピー）か環境変数で渡す。`/api/status` でキーの設定状況を確認できる
+コマンド: `npm run dev`（Vite、http://localhost:5173、/api は server.js へ転送）／`node server.js`（API と dist/ の配信、8797）／`npm test`／`npm run build`（tsc --noEmit → vite build）。
+サーバー側キーは `.env`（`.env.example` をコピー）か環境変数。`/api/status` でキーの設定状況を確認できる。
 
-### index.html の構造（主要関数）
+### 設計上の約束
 
-- `S` … アプリ状態（settings / favs / deleted / center / radius / genre / results / queue / view）
-- `GENRES` … チップ定義。`g` = Places の includedPrimaryTypes、`hp` = ホットペッパー genre コード、`kw` = 名前フィルタ用キーワード
-- `loadMaps()` / `initMap()` … Maps JS 読み込みと地図・中心ピン（ドラッグ可）・半径円の初期化
-- `setCenter(c, name, reverse)` … 検索中心の変更（逆ジオコーディングで地名表示）→ `search()`
-- `search()` → `searchGoogle()` / `searchHotPepper()` … 両ソースを共通スキーマに正規化
-  `{ id, name, genre, lat, lng, dish, dishLabel, price, hours, photo, url, rating, dist, source }`
-  `id` は `g:<placeId>` / `hp:<shopId>` で名前空間を分けている
-- `rebuildQueue()` … favs/deleted を除外した提示キュー
-- `renderDeck()` / `cardEl()` / `attachSwipe()` / `fly()` / `act(kind, id)` … キュー先頭 `S.shown` 件（既定 `PAGE`=3）を縦一覧で描画、「さらに表示」で 3 件ずつ追加、各カードにポインタースワイプ（しきい値 100px）と登録／削除ボタン。表示中のカード全部に地図ピンを立てる
-- `renderLists()` … お気に入り一覧・削除管理一覧（復旧ボタン、削除理由と自動復旧予定を表示）
-- `buildTaste()` / `tasteScore()` / `rankOmakase()` … 好みの学習。お気に入り／削除の履歴からジャンル・価格帯・距離帯のスコアを都度計算（別データは持たない）。おまかせの並びは 近さ 0.5 ＋ 好み 0.5 ＋ 乱数 0.3。`isLiked()` で「あなた好み」タグ
-- `passFilters()` / `renderFilters()` / `FILTERS` … 絞り込みチップ（今開いてる／徒歩5分以内＝`NEAR_M` 400m／タバコ可）。`S.filters` に永続化し、再検索せずクライアント側で適用。情報が無い店（`undefined`）は該当しない扱い
-- `fetchWeather()` / `renderRainbar()` … Open-Meteo（キー不要）で検索中心の現在天気を取得し、雨なら「徒歩5分以内に絞る？」バナーと雨アイコン付きチップを表示
-- `fetchHotPepper()` / `enrichFromHotPepper()` / `sameShop()` … Google の結果にホットペッパーの喫煙情報（`non_smoking`）と価格帯の補完を付与。80m 以内＋店名の先頭 4 文字一致で突き合わせ。`SERVER.hotpepper`（probeServer の結果）が false なら黙ってスキップ
-- `fetchDishes()` / `applyCachedDish()` … 表示中の Google カードについて `POST /api/dish` を非同期に呼び、結果で `dish`/`dishLabel`（名物）を差し替えてカード DOM を直接更新。`SERVER.dish` が true のときだけ呼び、404/501/403 を受けたら以後呼ばない
-- `askReason()` / `setReason()` / `restoreExpired()` … 削除直後の理由 4 択（高い／遠い／今の気分じゃない／興味なし、`REASONS`）。理由で学習の重み `DEL_W` が変わる。「今の気分じゃない」は 7 日で自動復旧（`expires`）
-- `geocodeQuery()` … 「場所を変更」の地名入力をジオコーディングして `setCenter()`。検索ボタン・Enter・「この場所で探す」（初期表示から書き換えたとき）の3経路から呼ばれ、成功したら `pushHistory()` で履歴に保存
-- `pushHistory()` / `renderHistory()` … 地名検索の履歴（`S.history`、`gourmet.history`、最大 `HISTORY_MAX`=8 件、新しい順・同名は統合）をダイアログにチップで表示。ダイアログを開くと入力欄に現在の場所名を入れて全選択
-- `openSheet(it, ctx)` / `renderSheet()` / `closeSheet()` … 店舗詳細のボトムシート。カードの写真・店名・「詳細を見る」、お気に入り／削除管理の行から開く。写真ギャラリー（`photos` 最大 6 枚、撮影者クレジット付き）、名物と根拠と雰囲気（`DISH`）、設備（`amenities`）、経路（Google マップ徒歩、`placeId` 付き）・電話・公式サイト・元ページ、営業時間の全曜日（`hoursAll`、今日を強調）、住所、口コミ 3 件。フッターは文脈（queue=登録／削除、fav=解除、trash=復旧）で切替。閉じるのは背景タップ・×・つまみを下にドラッグ・Esc。スワイプ中の誤タップは `dataset.moved` で抑止
-- `showView()` … タブ切替（探す／お気に入り／削除管理／設定）。「探す」は `#findScroll`（地図＋カード一覧＋ヒント）を1つのスクロール領域として持ち、ヘッダーとチップは固定。地図は `gestureHandling: 'cooperative'`（1本指=ページスクロール、2本指=地図操作）
+- **モジュール間は関数呼び出し時の循環だけ許容**し、import 時に相手の値を使わない。各 UI モジュールは `initX()` を export して main.ts が順に呼ぶ
+- 正規化（`normalizeGooglePlace` / `normalizeHotPepperShop`）と学習（`computeTaste` 等）は**純関数**に保ち、テストは node 環境で回す。`state.ts` はブラウザ API が無くても import できる
+- `S` は単一のミュータブルなオブジェクト。永続化は `save(key, value)` を明示的に呼ぶ（自動保存はしない）
+- 主要な処理の流れ: `setCenter` → `search`（`searchGoogle` / `searchHotPepper` → `enrichFromHotPepper` → `applyCachedDish`）→ `rebuildQueue`（favs/deleted 除外 + `passFilters`）→ `renderDeck`（先頭 `S.shown` 件、ピン表示、`fetchDishes`）
+- 各機能の詳細（学習の重み、絞り込み、雨、名物、詳細シート、履歴）は以前の記述どおりで、実装場所が上記のファイルに分かれただけ
 
 ### ジャンル → API マッピング
 
@@ -117,14 +129,14 @@ gourmet-app/
 1. ~~実キーで動作確認~~（完了：正規化の修正は不要だった）
 2. ~~候補数の拡充~~（完了：並列検索＋重複除去＋おまかせの帯内シャッフル）
 3. ~~店舗詳細画面~~（完了：ボトムシート。メニューは Places に無いので名物抽出で代替）
-4. プロジェクト分割：単一 HTML から Vite + TypeScript（または React）へ。`S` を store に、API 呼び出しを `src/api/google.ts` / `src/api/hotpepper.ts` に分離
+4. ~~プロジェクト分割~~（完了：Vite + TypeScript、Vanilla。GitHub Pages は Actions でビルド配信）
 5. サーバー同期：favs / deleted をユーザー単位で保存（認証込み）。Google キーもサーバー側で発行・リファラ制限
 6. PWA 化（オフラインのお気に入り閲覧、ホーム画面追加）
-7. テスト：正規化関数（`searchGoogle` / `searchHotPepper` の map 部分）を純関数に切り出してユニットテスト
+7. ~~テスト~~（完了：vitest 22 件。正規化・学習・距離。UI の回帰は Claude Code のブラウザペインで確認）
 
 ## 7. 作業ルール（Claude Code 向け）
 
-- 変更前に `node --check server.js` と index.html 内スクリプトの構文チェックを通す
+- 変更前に `npm run build`（tsc の型チェック込み）と `npm test` を通す。server.js は `node --check server.js`
 - API キーをコードやコミットに含めない（`.env` は `.gitignore` に追加）
 - スワイプの方向（右＝削除、左＝お気に入り）と「削除は復旧可能」の仕様は変えない
 - UI の色・フォントは上記トークンに従う。絵文字アイコンは使わず SVG
