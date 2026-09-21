@@ -80,10 +80,11 @@ ANTHROPIC_API_KEY=  # https://console.anthropic.com/ で取得。口コミから
 ### 同期（Supabase）の設定 — 無料、月額なし
 1. https://supabase.com/ でアカウントを作り、**New project**（Free プラン、リージョンは Northeast Asia (Tokyo)）。データベースのパスワードは控えなくてよい（アプリは使わない）
 2. 左メニュー **SQL Editor** → `supabase/schema.sql` の内容を貼って **Run**（テーブルとアクセス制御が作られる）
-3. **Authentication → Email Templates → Magic Link** の本文に `{{ .Token }}` を追加して保存（例: `<p>ログインコード: {{ .Token }}</p>`）。メールに 6 桁のコードが載るようになる。コードが届かず link だけの場合は **Confirm signup** のテンプレートにも同じ行を足す
-4. **Project Settings → API** の **Project URL** と **anon public** キーを控える
-5. GitHub のリポジトリ → **Settings → Secrets and variables → Actions → New repository secret** で `VITE_SUPABASE_URL` と `VITE_SUPABASE_ANON_KEY` を登録 → Actions の「Deploy to GitHub Pages」を再実行（または何か push）
-6. アプリの「設定」→ 同期 → メールアドレスを入れて「コードを送る」→ 届いた 6 桁を入れて「ログイン」。もう一方の端末でも同じメールでログインすれば共有される
+3. メールテンプレートは無料プランだと自前の送信先（SMTP）を設定しないと編集できない。**Resend**（無料 3,000 通/月、カード不要）で API キーを作り、Supabase の **Authentication → Emails → Set up SMTP** に入れる: Sender `onboarding@resend.dev`、Host `smtp.resend.com`、Port `465`、Username `resend`、Password = Resend の API キー。Resend は独自ドメインを登録するまで自分のアドレス宛にしか送れない（一人で使う分には十分）
+4. **Authentication → Emails → Templates** で **Magic Link** と **Confirm signup** の**両方**の本文に `<p>ログインコード: {{ .Token }}</p>` を足して Save（初回のアドレスには Confirm signup の文面が送られる）
+5. **Project Settings → API Keys** の **Publishable key**（`sb_publishable_…`。旧 anon key に相当）と、**Data API** の Project URL（`https://xxxx.supabase.co`。末尾に /rest/v1 が付いていてもアプリ側で取り除く）を控える。Secret key は使わない
+6. GitHub のリポジトリ → **Settings → Secrets and variables → Actions → New repository secret** で `VITE_SUPABASE_URL` と `VITE_SUPABASE_ANON_KEY`（Publishable key）を登録 → Actions の「Deploy to GitHub Pages」を Run workflow
+7. アプリの「設定」→ 同期 → メールアドレスを入れて「コードを送る」→ 届いた 6 桁を入れて「ログイン」。もう一方の端末でも同じメールでログインすれば共有される
 
 補足:
 - anon key は公開前提のキーで、テーブルの行単位のアクセス制御（RLS）で自分の行しか読めません。ビルドに含まれても問題ありません
