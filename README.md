@@ -102,6 +102,6 @@ ANTHROPIC_API_KEY=  # https://console.anthropic.com/ で取得。口コミから
 
 補足:
 - 無料プランは 15 分アクセスが無いとスリープし、次の初回応答に 1 分ほどかかります。アプリは起動時に `/api/status` を叩いて起こします。
-- `ALLOWED_ORIGINS`（既定 `https://riku1128-tong.github.io`）以外のオリジンからの `/api/*` は 403。localhost は常に許可。
+- `ALLOWED_ORIGINS`（既定 `https://riku1128-tong.github.io`）以外のオリジンからの `/api/*` は 403。localhost は常に許可。`/api/status` だけは Render のヘルスチェック用に無制限（キーの有無しか返さない）。
 - 名物抽出には回数上限があります（IP ごと 10 分 40 回、全体で 1 日 400 回。`DISH_LIMIT_PER_IP` / `DISH_LIMIT_PER_DAY` で変更）。
 - 無料プランのディスクは再起動で消えるため、サーバー側キャッシュ（`.cache/dish.json`）は永続しません。端末側キャッシュは残ります。
