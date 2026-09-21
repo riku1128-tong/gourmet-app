@@ -26,6 +26,9 @@ jobs:
       - run: npm run build
         env:
           BASE_PATH: /gourmet-app/
+          # 同期（Supabase）の接続先。リポジトリの Secrets に入れる（anon key は公開用なのでビルドに含めて問題ない）
+          VITE_SUPABASE_URL: ${{ secrets.VITE_SUPABASE_URL }}
+          VITE_SUPABASE_ANON_KEY: ${{ secrets.VITE_SUPABASE_ANON_KEY }}
       - uses: actions/configure-pages@v5
         with:
           enablement: true

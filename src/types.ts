@@ -43,12 +43,13 @@ export interface Shop {
 export type DeleteReason = 'high' | 'far' | 'mood' | 'none';
 
 export interface SavedShop extends Shop {
-  at: number;
+  at: number;            // 追加した時刻
+  updatedAt?: number;    // 最後に変更した時刻（同期の勝敗に使う。無ければ at）
   reason?: DeleteReason;
   expires?: number | null;
 }
 
-export interface Settings { gkey: string; source: 'google' | 'hotpepper'; proxy: string }
+export interface Settings { gkey: string; source: 'google' | 'hotpepper'; proxy: string; sbUrl?: string; sbKey?: string }
 
 export interface Filters { open: boolean; near: boolean; smoke: boolean }
 

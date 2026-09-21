@@ -47,6 +47,20 @@
       <select id="source"><option value="google">Google Places（ブラウザから直接）</option><option value="hotpepper">ホットペッパーグルメ（プロキシ経由）</option></select>
       <small>ぐるなびAPIは2021年に提供終了のため、価格帯・キャッチコピーが揃うホットペッパーグルメAPIを第2ソースにしています。CORS非対応のため同梱の server.js を経由します。</small></div>
     <div class="field" id="proxyField"><label for="proxy">サーバーURL（ホットペッパー・名物抽出・喫煙情報）</label><input id="proxy" type="url" placeholder="https://gourmet-app-server.onrender.com"><small id="srvStatus">サーバー: 未確認</small></div>
+    <div class="field" id="syncBox">
+      <label>同期（iPhone と PC でお気に入りを共有）</label>
+      <small id="syncStatus">同期: 未設定</small>
+      <div id="syncLogin" class="syncrow">
+        <div class="search"><input id="syncEmail" type="email" autocomplete="email" placeholder="メールアドレス"><button type="button" class="pill" id="syncSend">コードを送る</button></div>
+        <div class="search" id="syncCodeRow" hidden><input id="syncCode" inputmode="numeric" autocomplete="one-time-code" placeholder="メールに届いた6桁のコード"><button type="button" class="pill" id="syncVerify">ログイン</button></div>
+        <small>パスワードは不要です。メールに届く 6 桁のコードでログインします。お気に入りと削除管理だけを同期し、Google キーは端末ごとに保存されます。</small>
+      </div>
+      <div id="syncOn" class="syncrow" hidden><div class="seg"><button type="button" class="pill" id="syncNow">今すぐ同期</button><button type="button" class="pill" id="syncOut">ログアウト</button></div></div>
+      <details id="syncAdv"><summary>接続先（Supabase）を自分で指定する</summary>
+        <div class="field"><label for="sbUrl">Project URL</label><input id="sbUrl" type="url" placeholder="https://xxxx.supabase.co"></div>
+        <div class="field"><label for="sbKey">anon public key</label><input id="sbKey" type="password" placeholder="eyJ…"><small>anon key は公開用のキーです（行ごとのアクセス制御で守られます）。「保存して再検索」で反映されます。</small></div>
+      </details>
+    </div>
     <button class="primary" id="btnSave">保存して再検索</button>
     <div class="note">Google Places の「おすすめ」は Google のエディトリアル要約または口コミの冒頭を、ホットペッパーは店舗のキャッチコピーを表示します。価格帯は Google が4段階の目安、ホットペッパーは店舗登録の予算です。</div>
   </div>

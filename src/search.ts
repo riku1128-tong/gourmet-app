@@ -5,7 +5,8 @@ import { searchGoogle } from './api/google';
 import { searchHotPepper } from './api/hotpepper';
 import { fetchWeather } from './api/weather';
 import { moveCenter, reverseGeocode } from './maps';
-import { buildTaste, rankOmakase, restoreExpired } from './taste';
+import { buildTaste, rankOmakase } from './taste';
+import { restoreExpired } from './store';
 import { renderDeck } from './ui/deck';
 import { renderFilters, renderRainbar, resetRainDismissed } from './ui/filters';
 

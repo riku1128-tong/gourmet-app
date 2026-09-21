@@ -1,6 +1,6 @@
 // 「探す」のカード一覧: 描画・スワイプ・登録／削除
 import type { Shop } from '../types';
-import { $, PAGE, S, SERVER, save, toast } from '../state';
+import { $, PAGE, S, SERVER, toast } from '../state';
 import { fmtDist, walk } from '../geo';
 import { showShopMarkers } from '../maps';
 import { isLiked } from '../taste';
@@ -9,7 +9,7 @@ import { ICON_HEART, ICON_TRASH } from './icons';
 import { openSheet } from './sheet';
 import { renderLists } from './lists';
 import { askReason } from './reasons';
-import { cachePhotos } from '../pwa';
+import { addDeleted, addFav } from '../store';
 
 // 表示中は S.queue の先頭 S.shown 件。登録／削除で 1 件抜けると次の候補が末尾に繰り上がる
 export function renderDeck(loading = false, opts: { scrollToIndex?: number } = {}): void {
@@ -101,7 +101,7 @@ function fly(c: HTMLElement, dir: -1 | 1, cb: () => void): void {
 export function act(kind: 'fav' | 'del', id: string): void {
   const idx = S.queue.findIndex(x => x.id === id); if (idx < 0) return;
   const [it] = S.queue.splice(idx, 1);
-  if (kind === 'fav') { S.favs.unshift({ ...it, at: Date.now() }); save('favs', S.favs); cachePhotos(it); toast('お気に入りに登録しました'); }
-  else { S.deleted.unshift({ ...it, at: Date.now(), reason: 'none', expires: null }); save('deleted', S.deleted); askReason(it.id); }
+  if (kind === 'fav') { addFav(it); toast('お気に入りに登録しました'); }
+  else { addDeleted(it); askReason(it.id); }
   renderDeck(); renderLists();
 }

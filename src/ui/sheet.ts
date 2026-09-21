@@ -1,13 +1,13 @@
 // 店舗詳細のボトムシート
 import type { Shop, SheetContext } from '../types';
-import { $, DISH, S, el, save, toast } from '../state';
+import { $, DISH, S, el, toast } from '../state';
 import { fmtDist, walk } from '../geo';
 import { panTo } from '../maps';
 import { ICON_HEART, ICON_LINK, ICON_PHONE, ICON_ROUTE, ICON_TRASH } from './icons';
 import { act } from './deck';
 import { renderLists } from './lists';
 import { refresh } from '../search';
-import { uncachePhotos } from '../pwa';
+import { removeDeleted, removeFav } from '../store';
 
 let sheetItem: Shop | null = null, sheetCtx: SheetContext = 'queue';
 
@@ -101,9 +101,9 @@ function renderSheet(): void {
     f.appendChild(btn('bfav', ICON_HEART, 'お気に入り', () => { closeSheet(); act('fav', it.id); }));
     f.appendChild(btn('bdel', ICON_TRASH, '削除', () => { closeSheet(); act('del', it.id); }));
   } else if (sheetCtx === 'fav') {
-    f.appendChild(btn('bdel', ICON_HEART, 'お気に入りを解除', () => { closeSheet(); S.favs = S.favs.filter(x => x.id !== it.id); save('favs', S.favs); uncachePhotos(it); refresh(); renderLists(); toast('解除しました'); }));
+    f.appendChild(btn('bdel', ICON_HEART, 'お気に入りを解除', () => { closeSheet(); removeFav(it.id); refresh(); renderLists(); toast('解除しました'); }));
   } else {
-    f.appendChild(btn('bsolid', '', '復旧する', () => { closeSheet(); S.deleted = S.deleted.filter(x => x.id !== it.id); save('deleted', S.deleted); refresh(); renderLists(); toast('復旧しました'); }));
+    f.appendChild(btn('bsolid', '', '復旧する', () => { closeSheet(); removeDeleted(it.id); refresh(); renderLists(); toast('復旧しました'); }));
   }
 }
 

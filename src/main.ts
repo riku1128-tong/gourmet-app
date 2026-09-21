@@ -1,6 +1,7 @@
 import './styles.css';
 import { $, LS, S } from './state';
-import { buildTaste, restoreExpired } from './taste';
+import { buildTaste } from './taste';
+import { restoreExpired } from './store';
 import { initMap, loadMaps } from './maps';
 import { probeServer, fetchDishes } from './api/server';
 import { enrichFromHotPepper } from './api/hotpepper';
@@ -13,6 +14,7 @@ import { initLocation, locateMe } from './ui/location';
 import { initSettings } from './ui/settings';
 import { SERVER } from './state';
 import { isOffline, registerServiceWorker } from './pwa';
+import { initSync, onChange as onSyncChange } from './sync';
 
 // サーバーの確認が検索より遅れて終わった場合に、後追いで補完する
 function probe(): void {
@@ -25,9 +27,9 @@ function probe(): void {
 
 // 開発時だけ、ブラウザのコンソールや自動検証から内部に触れるようにする（本番ビルドには含まれない）
 if (import.meta.env.DEV) {
-  Promise.all([import('./ui/deck'), import('./ui/sheet'), import('./ui/filters'), import('./ui/location'), import('./api/server'), import('./taste'), import('./search')])
-    .then(([deck, sheet, filters, location, server, taste, search]) => {
-      (window as unknown as { __app: unknown }).__app = { S, SERVER, ...deck, ...sheet, ...filters, ...location, ...server, ...taste, ...search, showView, renderLists };
+  Promise.all([import('./ui/deck'), import('./ui/sheet'), import('./ui/filters'), import('./ui/location'), import('./api/server'), import('./taste'), import('./search'), import('./store'), import('./sync')])
+    .then(([deck, sheet, filters, location, server, taste, search, store, sync]) => {
+      (window as unknown as { __app: unknown }).__app = { S, SERVER, ...deck, ...sheet, ...filters, ...location, ...server, ...taste, ...search, ...store, sync, showView, renderLists };
     });
 }
 
@@ -46,6 +48,9 @@ function showOffline(): void {
   restoreExpired(); buildTaste();
   initNav(); initFilters(); initLists(); initSheet(); initLocation(); initSettings(probe);
   renderLists(); registerServiceWorker();
+  // 同期: サーバーから取り込んだら一覧と候補を描き直す（ログイン前や未設定なら何もしない）
+  onSyncChange(() => { buildTaste(); renderLists(); refresh(); });
+  initSync();
   if (isOffline()) { showOffline(); return; }
   probe();
   if (!S.settings.gkey) {

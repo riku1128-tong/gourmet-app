@@ -1,6 +1,6 @@
 // 好みの学習。お気に入り／削除の履歴からジャンル・価格帯・距離帯のスコアを都度計算する（別データは持たない）
 import type { DeleteReason, SavedShop, Shop } from './types';
-import { S, save } from './state';
+import { S } from './state';
 
 export const REASONS: Record<DeleteReason, { label: string; days?: number }> = {
   high: { label: '高い' }, far: { label: '遠い' },
@@ -50,8 +50,3 @@ export const tasteScore = (it: Shop): number => scoreWith(TASTE, it);
 export const isLiked = (it: Shop): boolean => TASTE.n >= 3 && tasteScore(it) >= 0.45;
 export const rankOmakase = (list: Shop[]): Shop[] => rankWith(TASTE, list, S.radius);
 
-// 「今の気分じゃない」の期限切れを削除管理から自動で外す（＝再び提案される）
-export function restoreExpired(): void {
-  const now = Date.now(), keep = S.deleted.filter(x => !(x.expires && x.expires <= now));
-  if (keep.length !== S.deleted.length) { S.deleted = keep; save('deleted', S.deleted); }
-}

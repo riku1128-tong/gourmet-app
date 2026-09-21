@@ -24,6 +24,7 @@
 | 永続化（現状） | `localStorage`（`gourmet.favs` / `gourmet.deleted` / `gourmet.settings` / `gourmet.center` / `gourmet.radius`） | 試作段階。サーバー同期は未実装 |
 | API キー | Google キーは設定画面でユーザーが入力し localStorage に保存。ホットペッパーと Claude のキーはサーバー側のみ（環境変数または `.env` の `HOTPEPPER_KEY` / `ANTHROPIC_API_KEY`） | 本番ではキー発行・制限をサーバー側へ |
 | サーバーの公開先 | **Render**（無料枠、`render.yaml` の Blueprint、サービス名 `gourmet-app-server`）。アプリは GitHub Pages 上では既定で `PUBLIC_SERVER` を向き、起動時に `probeServer()` で `/api/status` を叩いて使える機能を判定。`server.js` は `ALLOWED_ORIGINS` で Origin を制限し、名物抽出に IP／日次の回数上限を持つ | Pages は静的配信で server.js が動かない。無料枠のスリープ（初回 1 分）は起動時の probe で吸収 |
+| 同期（5 番） | **Supabase**（無料枠、東京）。テーブル `sync_items(user_id, kind, shop_id, data, removed, updated_at)`、RLS で自分の行のみ。認証は **メール 6 桁コード**（`signInWithOtp` + `verifyOtp`。マジックリンクは iOS のホーム画面版でアプリに戻らないため不採用）。接続先はビルド時の `VITE_SUPABASE_URL` / `VITE_SUPABASE_ANON_KEY`（GitHub Secrets → Actions）か設定画面の手入力。同期対象は favs / deleted のみ（Google キーは端末ごと） | Render の無料 DB は 30 日で消える。anon key は公開前提（RLS が守る）。衝突は updated_at の新しい方が勝ち、削除は墓標（removed=true）として残す |
 | 名物の一皿 | `server.js` の `POST /api/dish` が Google の口コミ（最大 5 件）を **Claude Opus 5**（`claude-opus-5`、`fallbacks: "default"`、構造化出力、effort low）に渡して `{dish, reason, vibe}` を抽出。SDK ではなく `fetch` で Messages API を直接呼ぶ（依存ゼロ方針・この PC に npm が無いため） | カードの「おすすめ」が口コミ冒頭では弱かった。サーバー（`.cache/dish.json`）と端末（`gourmet.dish`）の両方でキャッシュし、1 店 1 回しか課金しない |
 
 ## 3. 現在のファイル（Vite + TypeScript、フレームワークなし）
@@ -54,12 +55,17 @@ gourmet-app/
 │   │   ├── nav.ts      # showView / initNav（タブとジャンルチップ）
 │   │   ├── settings.ts # initSettings
 │   │   └── icons.ts    # SVG アイコン文字列
+│   ├── store.ts        # お気に入り／削除管理の変更はすべてここ（localStorage 保存 + 同期キュー + 写真キャッシュを対にする）
+│   ├── sync/
+│   │   ├── merge.ts    # mergeState（純関数）: 端末・未送信キュー・サーバー行を「新しい方が勝つ」で統合し、送るべき操作を返す
+│   │   └── index.ts    # Supabase クライアント（動的 import）、メール 6 桁コード認証、pending キュー、pull / flush
 │   ├── pwa.ts          # Service Worker の登録・更新バナー・お気に入り写真のキャッシュ（cachePhotos / uncachePhotos）・isOffline
 │   ├── styles.css
 │   └── *.test.ts       # vitest（正規化・学習・距離の純関数）
 ├── public/             # そのまま配信されるファイル: manifest.webmanifest、icons/（scripts/gen-icons.cjs で生成）
 ├── sw.template.js      # Service Worker の雛形。vite.config.mts のプラグインが殻の URL 一覧を埋めて dist/sw.js に出力
 ├── scripts/gen-icons.cjs  # PWA アイコンを依存なしで生成（Node の zlib で PNG を書く）
+├── supabase/schema.sql # 同期テーブル sync_items（RLS: 自分の行のみ、古い updated_at の上書きを拒むトリガー）
 ├── server.js           # ホットペッパー用プロキシ + 名物抽出（Claude）+ dist/ の静的配信（CommonJS、依存なし）
 ├── vite.config.mts     # base は BASE_PATH 環境変数（Pages では /gourmet-app/）。dev では /api を 8797 へプロキシ
 ├── tsconfig.json / package.json / package-lock.json
@@ -78,6 +84,7 @@ gourmet-app/
 - 正規化（`normalizeGooglePlace` / `normalizeHotPepperShop`）と学習（`computeTaste` 等）は**純関数**に保ち、テストは node 環境で回す。`state.ts` はブラウザ API が無くても import できる
 - `S` は単一のミュータブルなオブジェクト。永続化は `save(key, value)` を明示的に呼ぶ（自動保存はしない）
 - 主要な処理の流れ: `setCenter` → `search`（`searchGoogle` / `searchHotPepper` → `enrichFromHotPepper` → `applyCachedDish`）→ `rebuildQueue`（favs/deleted 除外 + `passFilters`）→ `renderDeck`（先頭 `S.shown` 件、ピン表示、`fetchDishes`）
+- 同期: 変更は必ず `store.ts` を通す（直接 `S.favs` / `S.deleted` を書き換えない）。`enqueue` は接続先が未設定なら何もしない。`pull()` は mergeState の結果で S を置き換え、`toPush` を pending にする。UI 側は `sync.onChange` で再描画
 - PWA: `registerServiceWorker()` は `import.meta.env.PROD` のときだけ。SW のキャッシュ名は `shell-<ビルド時刻>` と `photos-v1`。新ビルドを検知したら `#updatebar` を出し、ユーザーが押したときだけ `skipWaiting` → reload
 - 各機能の詳細（学習の重み、絞り込み、雨、名物、詳細シート、履歴）は以前の記述どおりで、実装場所が上記のファイルに分かれただけ
 
@@ -135,7 +142,7 @@ gourmet-app/
 2. ~~候補数の拡充~~（完了：並列検索＋重複除去＋おまかせの帯内シャッフル）
 3. ~~店舗詳細画面~~（完了：ボトムシート。メニューは Places に無いので名物抽出で代替）
 4. ~~プロジェクト分割~~（完了：Vite + TypeScript、Vanilla。GitHub Pages は Actions でビルド配信）
-5. サーバー同期：favs / deleted をユーザー単位で保存（認証込み）。Google キーもサーバー側で発行・リファラ制限
+5. ~~サーバー同期~~（実装完了。Supabase のプロジェクト作成・schema.sql の実行・メールテンプレート・GitHub Secrets はユーザー側の作業で、実データでの疎通確認はその後）。Google キーのサーバー側発行は未着手
 6. ~~PWA 化~~（完了：manifest + 自前 SW。殻は事前キャッシュ、ページはネット優先、お気に入りの写真だけ画像キャッシュ、更新バナー、オフライン表示。SW は本番ビルドのみ登録。**Claude Code のブラウザペインは http では SW を登録できない**ので、SW の検証は GitHub Pages（https）で行う）
 7. ~~テスト~~（完了：vitest 22 件。正規化・学習・距離。UI の回帰は Claude Code のブラウザペインで確認）
 
