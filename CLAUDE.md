@@ -56,8 +56,8 @@ gourmet-app/
 - `buildTaste()` / `tasteScore()` / `rankOmakase()` … 好みの学習。お気に入り／削除の履歴からジャンル・価格帯・距離帯のスコアを都度計算（別データは持たない）。おまかせの並びは 近さ 0.5 ＋ 好み 0.5 ＋ 乱数 0.3。`isLiked()` で「あなた好み」タグ
 - `passFilters()` / `renderFilters()` / `FILTERS` … 絞り込みチップ（今開いてる／徒歩5分以内＝`NEAR_M` 400m／タバコ可）。`S.filters` に永続化し、再検索せずクライアント側で適用。情報が無い店（`undefined`）は該当しない扱い
 - `fetchWeather()` / `renderRainbar()` … Open-Meteo（キー不要）で検索中心の現在天気を取得し、雨なら「徒歩5分以内に絞る？」バナーと雨アイコン付きチップを表示
-- `fetchHotPepper()` / `enrichFromHotPepper()` / `sameShop()` … Google の結果にホットペッパーの喫煙情報（`non_smoking`）と価格帯の補完を付与。80m 以内＋店名の先頭 4 文字一致で突き合わせ。プロキシが無い環境（GitHub Pages）では黙ってスキップ
-- `fetchDishes()` / `applyCachedDish()` … 表示中の Google カードについて `POST /api/dish` を非同期に呼び、結果で `dish`/`dishLabel`（名物）を差し替えてカード DOM を直接更新。404/501（サーバー無し／キー未設定）を受けたらそのセッションは以後呼ばない。GitHub Pages では最初から無効
+- `fetchHotPepper()` / `enrichFromHotPepper()` / `sameShop()` … Google の結果にホットペッパーの喫煙情報（`non_smoking`）と価格帯の補完を付与。80m 以内＋店名の先頭 4 文字一致で突き合わせ。`SERVER.hotpepper`（probeServer の結果）が false なら黙ってスキップ
+- `fetchDishes()` / `applyCachedDish()` … 表示中の Google カードについて `POST /api/dish` を非同期に呼び、結果で `dish`/`dishLabel`（名物）を差し替えてカード DOM を直接更新。`SERVER.dish` が true のときだけ呼び、404/501/403 を受けたら以後呼ばない
 - `askReason()` / `setReason()` / `restoreExpired()` … 削除直後の理由 4 択（高い／遠い／今の気分じゃない／興味なし、`REASONS`）。理由で学習の重み `DEL_W` が変わる。「今の気分じゃない」は 7 日で自動復旧（`expires`）
 - `geocodeQuery()` … 「場所を変更」の地名入力をジオコーディングして `setCenter()`。検索ボタン・Enter・「この場所で探す」（初期表示から書き換えたとき）の3経路から呼ばれ、成功したら `pushHistory()` で履歴に保存
 - `pushHistory()` / `renderHistory()` … 地名検索の履歴（`S.history`、`gourmet.history`、最大 `HISTORY_MAX`=8 件、新しい順・同名は統合）をダイアログにチップで表示。ダイアログを開くと入力欄に現在の場所名を入れて全選択
@@ -103,7 +103,7 @@ gourmet-app/
 ## 5. 未検証・既知の制約
 
 - 実 API キーでの動作確認は 2026-09-20 に実施済み。Places のフィールド名・`priceLevel` の enum・`photos[0].getURI()` は想定どおりで、正規化の修正は不要だった
-- Places API (New) の周辺検索は 1 回 20 件上限。半径を広げても件数は増えないため、`buildGoogleRequests()` で条件違いのリクエストを最大 `MAX_GOOGLE_REQUESTS`=4 本並列に投げて place ID で重複除去している（ジャンル指定＝人気順＋距離順の 2 本、おまかせ＝さらに `OMAKASE_TYPES` からランダム 2 タイプ）。おまかせの並びは `bucketShuffle()` で 500m 帯ごとにシャッフル
+- Places API (New) の周辺検索は 1 回 20 件上限。半径を広げても件数は増えないため、`buildGoogleRequests()` で条件違いのリクエストを最大 `MAX_GOOGLE_REQUESTS`=4 本並列に投げて place ID で重複除去している（ジャンル指定＝人気順＋距離順の 2 本、おまかせ＝さらに `OMAKASE_TYPES` からランダム 2 タイプ）。おまかせの並びは `rankOmakase()`（近さ＋好み＋乱数）
 - 課金: `reviews` を fields に含めるため Nearby Search は Enterprise + Atmosphere SKU（月 1,000 回無料）。1 検索で最大 4 回消費するので、無料枠内は月 250 検索が目安
 - ホットペッパーの `range` は 1=300m / 2=500m / 3=1km / 4=2km / 5=3km。5km 指定時は 3km 検索になり、`dist <= radius` でフィルタ
 - `mapId: 'DEMO_MAP_ID'` は開発用。本番は Cloud Console で Map ID を発行
