@@ -82,6 +82,11 @@
   .note{padding:12px 14px;border-radius:14px;background:#F3ECDF;font-size:12px;color:#5C544E;line-height:1.55}
   .search{display:flex;gap:8px}
   .search input{flex:1;height:44px;border:1px solid #D9CFC2;border-radius:22px;padding:0 14px;background:#fff}
+  .hist{display:flex;flex-wrap:wrap;gap:6px}
+  .hist small{width:100%;font-size:11px;color:var(--mute)}
+  .hist .pill{height:32px;font-size:12px;padding:0 10px;max-width:100%}
+  .hist .pill span{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .hist .pill.clr{border-style:dashed;color:var(--mute)}
   .seg{display:flex;gap:6px}.seg .pill{flex:1;justify-content:center;height:38px}
   dialog{border:none;border-radius:20px;padding:0;max-width:420px;width:calc(100% - 32px)}
   dialog::backdrop{background:rgba(31,26,23,.5)}
@@ -143,6 +148,7 @@
 <dialog id="dlgLoc"><div class="in">
   <b style="font-size:18px">場所を変更</b>
   <div class="search"><input id="q" placeholder="駅名・住所・スポット名"><button class="pill" id="btnGeo">検索</button></div>
+  <div class="hist" id="hist"></div>
   <div class="field"><label>検索範囲</label><div class="seg" id="radius"><button class="pill" data-r="500">500m</button><button class="pill on" data-r="1000">1km</button><button class="pill" data-r="2000">2km</button><button class="pill" data-r="5000">5km</button></div></div>
   <button class="pill" id="btnHere">現在地に戻す</button>
   <small style="font-size:12px;color:var(--mute)">地図上のオレンジのピンはドラッグで移動できます。</small>
@@ -161,6 +167,7 @@ const S = {
   center: LS('center', { lat: 35.6590, lng: 139.7006 }), // 渋谷駅
   radius: LS('radius', 1000), genre: 'おまかせ',
   filters: LS('filters', { open: false, near: false, smoke: false }), weather: null,
+  history: LS('history', []), // 地名検索の履歴 [{ name, lat, lng, at }]、新しい順に最大 HISTORY_MAX 件
   results: [], queue: [], shown: 3, view: 'find', locName: '渋谷駅周辺'
 };
 const NEAR_M = 400; // 「徒歩5分以内」= 80m/分 × 5
@@ -615,7 +622,30 @@ $('#btnSave').onclick = async () => {
   if (changedProxy) { $('#proxy').value = S.settings.proxy; probeServer(); }
   showView('find'); search();
 };
-$('#btnLoc').onclick = () => $('#dlgLoc').showModal();
+// ---------- 場所の検索履歴 ----------
+const HISTORY_MAX = 8;
+function pushHistory(name, c) {
+  if (!name) return;
+  S.history = [{ name, lat: c.lat, lng: c.lng, at: Date.now() }, ...S.history.filter(h => h.name !== name)].slice(0, HISTORY_MAX);
+  save('history', S.history);
+}
+function renderHistory() {
+  const w = $('#hist'); w.innerHTML = '';
+  if (!S.history.length) return;
+  const t = document.createElement('small'); t.textContent = '最近探した場所'; w.appendChild(t);
+  S.history.forEach(h => {
+    const b = document.createElement('button'); b.type = 'button'; b.className = 'pill'; b.title = h.name;
+    const s = document.createElement('span'); s.textContent = h.name; b.appendChild(s);
+    b.onclick = () => { $('#dlgLoc').close(); pushHistory(h.name, h); setCenter({ lat: h.lat, lng: h.lng }, h.name); };
+    w.appendChild(b);
+  });
+  const clr = document.createElement('button'); clr.type = 'button'; clr.className = 'pill clr'; clr.textContent = '履歴を消す';
+  clr.onclick = () => { S.history = []; save('history', []); renderHistory(); };
+  w.appendChild(clr);
+}
+// ダイアログを開くと入力欄に今の場所名を入れて全選択（そのまま打てば置き換わる）
+let qPrefill = '';
+$('#btnLoc').onclick = () => { qPrefill = S.locName || ''; $('#q').value = qPrefill; renderHistory(); $('#dlgLoc').showModal(); $('#q').select(); };
 $('#radius').querySelectorAll('.pill').forEach(b => { b.classList.toggle('on', +b.dataset.r === S.radius); b.onclick = () => { S.radius = +b.dataset.r; save('radius', S.radius); $('#radius').querySelectorAll('.pill').forEach(x => x.classList.toggle('on', x === b)); if (circle) circle.setRadius(S.radius); }; });
 // 入力欄の地名をジオコーディングして中心を移動。成功したら true
 async function geocodeQuery() {
@@ -624,8 +654,11 @@ async function geocodeQuery() {
   try {
     const r = await geocoder.geocode({ address: q, region: 'jp', language: 'ja' });
     const g = r.results?.[0]; if (!g) { toast('「' + q + '」が見つかりませんでした'); return false; }
-    $('#dlgLoc').close(); $('#q').value = '';
-    await setCenter({ lat: g.geometry.location.lat(), lng: g.geometry.location.lng() }, g.formatted_address.replace(/^日本、?/, '').replace(/^〒?\d{3}-?\d{4}\s*/, ''));
+    $('#dlgLoc').close();
+    const c = { lat: g.geometry.location.lat(), lng: g.geometry.location.lng() };
+    const name = g.formatted_address.replace(/^日本、?/, '').replace(/^〒?\d{3}-?\d{4}\s*/, '') || q;
+    pushHistory(name, c);
+    await setCenter(c, name);
     return true;
   } catch (e) {
     // ZERO_RESULTS は例外として投げられることがある
@@ -636,9 +669,10 @@ async function geocodeQuery() {
 $('#btnGeo').onclick = geocodeQuery;
 $('#q').addEventListener('keydown', e => { if (e.key === 'Enter') { e.preventDefault(); geocodeQuery(); } });
 $('#btnHere').onclick = () => { $('#dlgLoc').close(); locateMe(); };
-// 「この場所で探す」：地名が入力されていればそれを優先して移動、空ならピン位置・半径で再検索
+// 「この場所で探す」：地名を書き換えていればそれで移動、初期表示のまま（または空）ならピン位置・半径で再検索
 $('#btnApply').onclick = async () => {
-  if ($('#q').value.trim()) { await geocodeQuery(); return; }
+  const q = $('#q').value.trim();
+  if (q && q !== qPrefill) { await geocodeQuery(); return; }
   $('#dlgLoc').close(); search();
 };
 function locateMe() {

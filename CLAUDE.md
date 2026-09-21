@@ -59,7 +59,8 @@ gourmet-app/
 - `fetchHotPepper()` / `enrichFromHotPepper()` / `sameShop()` … Google の結果にホットペッパーの喫煙情報（`non_smoking`）と価格帯の補完を付与。80m 以内＋店名の先頭 4 文字一致で突き合わせ。プロキシが無い環境（GitHub Pages）では黙ってスキップ
 - `fetchDishes()` / `applyCachedDish()` … 表示中の Google カードについて `POST /api/dish` を非同期に呼び、結果で `dish`/`dishLabel`（名物）を差し替えてカード DOM を直接更新。404/501（サーバー無し／キー未設定）を受けたらそのセッションは以後呼ばない。GitHub Pages では最初から無効
 - `askReason()` / `setReason()` / `restoreExpired()` … 削除直後の理由 4 択（高い／遠い／今の気分じゃない／興味なし、`REASONS`）。理由で学習の重み `DEL_W` が変わる。「今の気分じゃない」は 7 日で自動復旧（`expires`）
-- `geocodeQuery()` … 「場所を変更」の地名入力をジオコーディングして `setCenter()`。検索ボタン・Enter・「この場所で探す」（入力があるとき）の3経路から呼ばれる
+- `geocodeQuery()` … 「場所を変更」の地名入力をジオコーディングして `setCenter()`。検索ボタン・Enter・「この場所で探す」（初期表示から書き換えたとき）の3経路から呼ばれ、成功したら `pushHistory()` で履歴に保存
+- `pushHistory()` / `renderHistory()` … 地名検索の履歴（`S.history`、`gourmet.history`、最大 `HISTORY_MAX`=8 件、新しい順・同名は統合）をダイアログにチップで表示。ダイアログを開くと入力欄に現在の場所名を入れて全選択
 - `showView()` … タブ切替（探す／お気に入り／削除管理／設定）。「探す」は `#findScroll`（地図＋カード一覧＋ヒント）を1つのスクロール領域として持ち、ヘッダーとチップは固定。地図は `gestureHandling: 'cooperative'`（1本指=ページスクロール、2本指=地図操作）
 
 ### ジャンル → API マッピング
