@@ -103,6 +103,8 @@ http.createServer(async (req, res) => {
   if (req.headers.origin && allowed) { res.setHeader('Access-Control-Allow-Origin', req.headers.origin); res.setHeader('Vary', 'Origin'); }
   res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
   if (req.method === 'OPTIONS') return res.writeHead(204).end();
+  // /api/status は Render のヘルスチェック（Origin 無し）も叩くので制限しない。返すのはキーの有無だけ
+  if (url.pathname === '/api/status') return json(res, 200, { hotpepper: !!KEY, dish: !!ANTHROPIC_KEY, model: CLAUDE_MODEL, cached: Object.keys(dishCache).length, originAllowed: allowed });
   if (url.pathname.startsWith('/api/') && !allowed) return json(res, 403, { error: 'このオリジンからの利用は許可されていません（ALLOWED_ORIGINS）' });
 
   if (url.pathname === '/api/hotpepper') {
@@ -129,8 +131,6 @@ http.createServer(async (req, res) => {
     } catch (e) { json(res, e.status || 500, { error: e.message }); }
     return;
   }
-
-  if (url.pathname === '/api/status') return json(res, 200, { hotpepper: !!KEY, dish: !!ANTHROPIC_KEY, model: CLAUDE_MODEL, cached: Object.keys(dishCache).length });
 
   // 静的ファイル（index.html）。ドットで始まるパス（.env / .cache / .git）は配信しない
   const file = path.join(__dirname, url.pathname === '/' ? 'index.html' : url.pathname);
