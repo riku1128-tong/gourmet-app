@@ -1,4 +1,4 @@
-// Supabase による同期: メール 6 桁コードでログインし、お気に入り／削除管理を端末間で共有する
+// Supabase による同期: メールのコードでログインし、お気に入り／削除管理を端末間で共有する
 // - 端末の変更は pending キュー（localStorage）に積み、オンラインなら即送る
 // - 起動時・画面復帰時・ログイン時にサーバーから取得して mergeState で統合（新しい方が勝つ）
 import type { Session, SupabaseClient } from '@supabase/supabase-js';
@@ -53,7 +53,7 @@ export async function initSync(): Promise<void> {
   emit();
 }
 
-// ---- 認証（メールに届く 6 桁コード。マジックリンクはホーム画面版で戻ってこないので使わない） ----
+// ---- 認証（メールに届くコード。桁数は Supabase 側の設定（既定 8 桁）。マジックリンクはホーム画面版で戻ってこないので使わない） ----
 export async function sendCode(email: string): Promise<string | null> {
   const c = await getClient(); if (!c) return '同期の接続先が設定されていません';
   const { error } = await c.auth.signInWithOtp({ email, options: { shouldCreateUser: true } });

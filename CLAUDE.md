@@ -24,7 +24,7 @@
 | 永続化（現状） | `localStorage`（`gourmet.favs` / `gourmet.deleted` / `gourmet.settings` / `gourmet.center` / `gourmet.radius`） | 試作段階。サーバー同期は未実装 |
 | API キー | Google キーは設定画面でユーザーが入力し localStorage に保存。ホットペッパーと Claude のキーはサーバー側のみ（環境変数または `.env` の `HOTPEPPER_KEY` / `ANTHROPIC_API_KEY`） | 本番ではキー発行・制限をサーバー側へ |
 | サーバーの公開先 | **Render**（無料枠、`render.yaml` の Blueprint、サービス名 `gourmet-app-server`）。アプリは GitHub Pages 上では既定で `PUBLIC_SERVER` を向き、起動時に `probeServer()` で `/api/status` を叩いて使える機能を判定。`server.js` は `ALLOWED_ORIGINS` で Origin を制限し、名物抽出に IP／日次の回数上限を持つ | Pages は静的配信で server.js が動かない。無料枠のスリープ（初回 1 分）は起動時の probe で吸収 |
-| 同期（5 番） | **Supabase**（無料枠、東京）。テーブル `sync_items(user_id, kind, shop_id, data, removed, updated_at)`、RLS で自分の行のみ。認証は **メール 6 桁コード**（`signInWithOtp` + `verifyOtp`。マジックリンクは iOS のホーム画面版でアプリに戻らないため不採用）。接続先はビルド時の `VITE_SUPABASE_URL` / `VITE_SUPABASE_ANON_KEY`（GitHub Secrets → Actions）か設定画面の手入力。同期対象は favs / deleted のみ（Google キーは端末ごと） | Render の無料 DB は 30 日で消える。anon key は公開前提（RLS が守る）。衝突は updated_at の新しい方が勝ち、削除は墓標（removed=true）として残す |
+| 同期（5 番） | **Supabase**（無料枠、東京）。テーブル `sync_items(user_id, kind, shop_id, data, removed, updated_at)`、RLS で自分の行のみ。認証は **メールのコード**（`signInWithOtp` + `verifyOtp`。マジックリンクは iOS のホーム画面版でアプリに戻らないため不採用）。接続先はビルド時の `VITE_SUPABASE_URL` / `VITE_SUPABASE_ANON_KEY`（GitHub Secrets → Actions）か設定画面の手入力。同期対象は favs / deleted のみ（Google キーは端末ごと） | Render の無料 DB は 30 日で消える。anon key は公開前提（RLS が守る）。衝突は updated_at の新しい方が勝ち、削除は墓標（removed=true）として残す |
 | 名物の一皿 | `server.js` の `POST /api/dish` が Google の口コミ（最大 5 件）を **Claude Opus 5**（`claude-opus-5`、`fallbacks: "default"`、構造化出力、effort low）に渡して `{dish, reason, vibe}` を抽出。SDK ではなく `fetch` で Messages API を直接呼ぶ（依存ゼロ方針・この PC に npm が無いため） | カードの「おすすめ」が口コミ冒頭では弱かった。サーバー（`.cache/dish.json`）と端末（`gourmet.dish`）の両方でキャッシュし、1 店 1 回しか課金しない |
 
 ## 3. 現在のファイル（Vite + TypeScript、フレームワークなし）
@@ -58,7 +58,7 @@ gourmet-app/
 │   ├── store.ts        # お気に入り／削除管理の変更はすべてここ（localStorage 保存 + 同期キュー + 写真キャッシュを対にする）
 │   ├── sync/
 │   │   ├── merge.ts    # mergeState（純関数）: 端末・未送信キュー・サーバー行を「新しい方が勝つ」で統合し、送るべき操作を返す
-│   │   └── index.ts    # Supabase クライアント（動的 import）、メール 6 桁コード認証、pending キュー、pull / flush
+│   │   └── index.ts    # Supabase クライアント（動的 import）、メールのコード認証、pending キュー、pull / flush
 │   ├── pwa.ts          # Service Worker の登録・更新バナー・お気に入り写真のキャッシュ（cachePhotos / uncachePhotos）・isOffline
 │   ├── styles.css
 │   └── *.test.ts       # vitest（正規化・学習・距離の純関数）
@@ -142,7 +142,7 @@ gourmet-app/
 2. ~~候補数の拡充~~（完了：並列検索＋重複除去＋おまかせの帯内シャッフル）
 3. ~~店舗詳細画面~~（完了：ボトムシート。メニューは Places に無いので名物抽出で代替）
 4. ~~プロジェクト分割~~（完了：Vite + TypeScript、Vanilla。GitHub Pages は Actions でビルド配信）
-5. ~~サーバー同期~~（実装完了。Supabase のプロジェクト作成・schema.sql の実行・メールテンプレート・GitHub Secrets はユーザー側の作業で、実データでの疎通確認はその後）。Google キーのサーバー側発行は未着手
+5. ~~サーバー同期~~（完了：2026-09-21 に iPhone と PC の間で実データの同期を確認。Supabase 側は Resend の SMTP、テンプレート 2 種に {{ .Token }}、Publishable key を GitHub Secrets に登録済み）。Google キーのサーバー側発行は未着手
 6. ~~PWA 化~~（完了：manifest + 自前 SW。殻は事前キャッシュ、ページはネット優先、お気に入りの写真だけ画像キャッシュ、更新バナー、オフライン表示。SW は本番ビルドのみ登録。**Claude Code のブラウザペインは http では SW を登録できない**ので、SW の検証は GitHub Pages（https）で行う）
 7. ~~テスト~~（完了：vitest 22 件。正規化・学習・距離。UI の回帰は Claude Code のブラウザペインで確認）
 

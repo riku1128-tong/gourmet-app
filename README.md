@@ -84,7 +84,7 @@ ANTHROPIC_API_KEY=  # https://console.anthropic.com/ で取得。口コミから
 4. **Authentication → Emails → Templates** で **Magic Link** と **Confirm signup** の**両方**の本文に `<p>ログインコード: {{ .Token }}</p>` を足して Save（初回のアドレスには Confirm signup の文面が送られる）
 5. **Project Settings → API Keys** の **Publishable key**（`sb_publishable_…`。旧 anon key に相当）と、**Data API** の Project URL（`https://xxxx.supabase.co`。末尾に /rest/v1 が付いていてもアプリ側で取り除く）を控える。Secret key は使わない
 6. GitHub のリポジトリ → **Settings → Secrets and variables → Actions → New repository secret** で `VITE_SUPABASE_URL` と `VITE_SUPABASE_ANON_KEY`（Publishable key）を登録 → Actions の「Deploy to GitHub Pages」を Run workflow
-7. アプリの「設定」→ 同期 → メールアドレスを入れて「コードを送る」→ 届いた 6 桁を入れて「ログイン」。もう一方の端末でも同じメールでログインすれば共有される
+7. アプリの「設定」→ 同期 → メールアドレスを入れて「コードを送る」→ 届いたコードを入れて「ログイン」。もう一方の端末でも同じメールでログインすれば共有される
 
 補足:
 - anon key は公開前提のキーで、テーブルの行単位のアクセス制御（RLS）で自分の行しか読めません。ビルドに含まれても問題ありません
