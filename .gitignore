@@ -19,3 +19,7 @@ Thumbs.db
 
 # 名物抽出のサーバー側キャッシュ
 .cache/
+
+# Claude Code のスキル設定（マシン固有）
+.claude/
+skills-lock.json

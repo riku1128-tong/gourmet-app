@@ -88,6 +88,49 @@
   .hist .pill span{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
   .hist .pill.clr{border-style:dashed;color:var(--mute)}
   .seg{display:flex;gap:6px}.seg .pill{flex:1;justify-content:center;height:38px}
+  /* 店舗詳細（ボトムシート） */
+  .sheet-bd{position:fixed;inset:0;background:rgba(31,26,23,.5);opacity:0;pointer-events:none;transition:opacity .2s;z-index:20}
+  .sheet-bd.on{opacity:1;pointer-events:auto}
+  .sheet{position:fixed;left:50%;bottom:0;transform:translate(-50%,105%);width:100%;max-width:480px;max-height:92vh;max-height:92dvh;background:var(--bg);border-radius:24px 24px 0 0;box-shadow:0 -8px 30px rgba(31,26,23,.2);z-index:21;display:flex;flex-direction:column;transition:transform .25s ease;overscroll-behavior:contain}
+  .sheet.on{transform:translate(-50%,0)}
+  .sheet.drag{transition:none}
+  .sheet .grip{padding:10px 16px 6px;display:flex;align-items:center;justify-content:space-between;touch-action:none;cursor:grab;flex-shrink:0}
+  .sheet .grip i{position:absolute;left:50%;top:10px;width:40px;height:5px;border-radius:3px;background:#D9CFC2;transform:translateX(-50%)}
+  .sheet .grip button{width:44px;height:44px;border-radius:22px;border:none;background:#fff;color:var(--ink);display:flex;align-items:center;justify-content:center;cursor:pointer;margin-left:auto}
+  .sheet .sc{overflow-y:auto;padding:0 16px 16px;display:flex;flex-direction:column;gap:14px;-webkit-overflow-scrolling:touch;min-height:0}
+  .gallery{display:flex;gap:8px;overflow-x:auto;scroll-snap-type:x mandatory;margin:0 -16px;padding:0 16px;scrollbar-width:none}
+  .gallery::-webkit-scrollbar{display:none}
+  .gallery figure{margin:0;position:relative;flex-shrink:0;min-width:78%;scroll-snap-align:start}
+  .gallery figure:only-child{min-width:100%}
+  .gallery img{display:block;width:100%;height:200px;border-radius:16px;object-fit:cover;background:#EDE6D8}
+  .gallery figcaption{position:absolute;right:8px;bottom:8px;font-size:10px;color:#fff;text-shadow:0 1px 2px rgba(0,0,0,.7)}
+  .sheet h2{font-size:20px;margin:0;line-height:1.3}
+  .sheet .sub2{font-size:13px;color:var(--mute);display:flex;flex-wrap:wrap;gap:4px 12px}
+  .sheet .hl{background:#fff;border:1px solid var(--line);border-radius:16px;padding:12px 14px;display:flex;flex-direction:column;gap:6px}
+  .sheet .hl .t{font-size:11px;font-weight:700;color:#B8431F}
+  .sheet .hl .d{font-size:16px;font-weight:700}
+  .sheet .hl .r{font-size:13px;color:#5C544E;line-height:1.5}
+  .vibe{align-self:flex-start;font-size:12px;font-weight:700;color:#2F5C96;background:#E8F0FA;padding:4px 10px;border-radius:10px}
+  .amen{display:flex;flex-wrap:wrap;gap:6px}
+  .amen span{font-size:12px;background:#F3ECDF;color:#5C544E;padding:4px 10px;border-radius:10px}
+  .sheet h3{font-size:13px;margin:0 0 6px;color:var(--mute)}
+  .hours{list-style:none;margin:0;padding:0;font-size:13px;display:flex;flex-direction:column;gap:4px}
+  .hours li{display:flex;justify-content:space-between;gap:10px;color:var(--mute)}
+  .hours li.today{color:var(--ink);font-weight:700}
+  .sheet .kv{font-size:13px;display:flex;flex-direction:column;gap:6px}
+  .sheet .kv div{display:flex;gap:10px;align-items:flex-start}
+  .sheet .kv b{width:48px;flex-shrink:0;font-size:12px;color:var(--mute)}
+  .sheet .kv a{color:var(--ink)}
+  .revs{display:flex;flex-direction:column;gap:8px}
+  .revs p{margin:0;font-size:13px;line-height:1.55;color:#5C544E;background:#fff;border-radius:12px;padding:10px 12px}
+  .acts{display:flex;gap:8px;flex-wrap:wrap}
+  .acts a,.acts button{height:44px;padding:0 14px;border-radius:22px;border:1px solid #D9CFC2;background:#fff;color:var(--ink);font-size:13px;font-weight:700;display:inline-flex;align-items:center;gap:6px;text-decoration:none;cursor:pointer}
+  .acts .go{background:var(--ink);color:#fff;border-color:var(--ink)}
+  .sheet .foot2{display:flex;gap:10px;padding:10px 16px calc(12px + env(safe-area-inset-bottom));border-top:1px solid var(--line);background:#fff;flex-shrink:0}
+  .sheet .foot2 button{flex:1;height:48px;border-radius:24px;border:2px solid;background:#fff;font-size:14px;font-weight:700;display:flex;align-items:center;justify-content:center;gap:6px;cursor:pointer}
+  .sheet .foot2 .bfav{color:var(--fav);border-color:var(--fav)}
+  .sheet .foot2 .bdel{color:#5C544E;border-color:#8A8078}
+  .sheet .foot2 .bsolid{background:var(--ink);color:#fff;border-color:var(--ink)}
   dialog{border:none;border-radius:20px;padding:0;max-width:420px;width:calc(100% - 32px)}
   dialog::backdrop{background:rgba(31,26,23,.5)}
   dialog .in{padding:20px;display:flex;flex-direction:column;gap:14px}
@@ -155,6 +198,12 @@
   <button class="primary" id="btnApply">この場所で探す</button>
 </div></dialog>
 <div class="toast" id="toast"></div>
+<div class="sheet-bd" id="sheetBd"></div>
+<div class="sheet" id="sheet" role="dialog" aria-modal="true" aria-label="店舗詳細">
+  <div class="grip" id="sheetGrip"><i></i><button type="button" id="sheetClose" aria-label="閉じる"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M6 6l12 12M18 6L6 18"/></svg></button></div>
+  <div class="sc" id="sheetBody"></div>
+  <div class="foot2" id="sheetFoot"></div>
+</div>
 <div class="reasons" id="reasons" role="group" aria-label="削除の理由"><span>削除しました。理由を選ぶと「おまかせ」が好みを学習します</span><div class="rbtns"></div></div>
 
 <script>
@@ -336,7 +385,9 @@ function buildGoogleRequests(gen) {
 async function searchGoogle(gen) {
   const { Place, SearchNearbyRankPreference } = await google.maps.importLibrary('places');
   const base = {
-    fields: ['id', 'displayName', 'location', 'primaryTypeDisplayName', 'priceLevel', 'rating', 'userRatingCount', 'photos', 'editorialSummary', 'reviews', 'regularOpeningHours', 'utcOffsetMinutes', 'businessStatus', 'googleMapsURI'],
+    // reviews を含む時点で Enterprise + Atmosphere SKU なので、住所・電話・サイト・設備を足しても課金は変わらない
+    fields: ['id', 'displayName', 'location', 'primaryTypeDisplayName', 'priceLevel', 'rating', 'userRatingCount', 'photos', 'editorialSummary', 'reviews', 'regularOpeningHours', 'utcOffsetMinutes', 'businessStatus', 'googleMapsURI',
+      'formattedAddress', 'nationalPhoneNumber', 'websiteURI', 'isReservable', 'hasTakeout', 'hasDineIn', 'hasOutdoorSeating'],
     locationRestriction: { center: S.center, radius: S.radius }, maxResultCount: 20, language: 'ja', region: 'jp'
   };
   const settled = await Promise.allSettled(buildGoogleRequests(gen).map(r =>
@@ -364,7 +415,11 @@ async function searchGoogle(gen) {
       dishLabel: p.editorialSummary ? 'おすすめ' : '口コミ',
       price: PRICE[p.priceLevel] || '価格帯 不明',
       hours: p.regularOpeningHours?.weekdayDescriptions?.[today]?.replace(/^[^:：]+[:：]\s*/, '本日 ') || '',
-      photo: p.photos?.[0]?.getURI({ maxWidth: 800 }) || '', url: p.googleMapsURI || '', rating: p.rating,
+      photo: p.photos?.[0]?.getURI({ maxWidth: 800 }) || '', url: p.googleMapsURI || '', rating: p.rating, ratingCount: p.userRatingCount,
+      // 詳細画面用（写真は最大 6 枚。URI は取得時に確定させる）
+      photos: (p.photos || []).slice(0, 6).map(ph => ({ url: ph.getURI({ maxWidth: 800 }), by: ph.authorAttributions?.[0]?.displayName || '' })),
+      hoursAll: p.regularOpeningHours?.weekdayDescriptions || [], address: p.formattedAddress || '', tel: p.nationalPhoneNumber || '', site: p.websiteURI || '', placeId: p.id,
+      amenities: [p.isReservable && '予約可', p.hasDineIn && '店内飲食', p.hasTakeout && 'テイクアウト', p.hasOutdoorSeating && 'テラス席'].filter(Boolean),
       dist: google.maps.geometry.spherical.computeDistanceBetween(S.center, { lat, lng }), source: 'Google'
     };
   });
@@ -416,6 +471,9 @@ async function fetchHotPepper(params) {
     dish: s.catch || s.genre?.catch || '情報なし', dishLabel: 'おすすめ', price: s.budget?.name || '価格帯 不明',
     hours: s.open ? s.open.split('（')[0].slice(0, 30) : '', photo: s.photo?.mobile?.l || s.photo?.pc?.l || '', url: s.urls?.pc || '',
     openNow: undefined, smoking: smokingOf(s), // ホットペッパーに「今営業中」の項目は無い
+    photos: s.photo?.pc?.l ? [{ url: s.photo.pc.l, by: '' }] : [], hoursAll: s.open ? [s.open] : [], hoursNote: s.close ? '定休日: ' + s.close : '',
+    address: s.address || '', access: s.access || '', tel: '', site: '', hpUrl: s.urls?.pc || '',
+    amenities: [s.private_room && /あり/.test(s.private_room) && '個室あり', s.card && /利用可/.test(s.card) && 'カード可', s.parking && /あり/.test(s.parking) && '駐車場', s.wifi && /あり/.test(s.wifi) && 'Wi-Fi', s.lunch && /あり/.test(s.lunch) && 'ランチ', s.midnight && /営業/.test(s.midnight) && '深夜営業', s.free_drink && /あり/.test(s.free_drink) && '飲み放題'].filter(Boolean),
     dist: google.maps.geometry.spherical.computeDistanceBetween(S.center, { lat: +s.lat, lng: +s.lng }), source: 'ホットペッパーグルメ'
   })).filter(x => x.dist <= S.radius);
 }
@@ -532,7 +590,7 @@ function cardEl(it) {
     <div class="body">
       <div class="ttl"><b></b><span class="dist">${fmtDist(it.dist)}</span></div>
       <div class="dish"><span class="tag">${it.dishLabel}</span><span class="dtext"></span></div>
-      <div class="meta">${isLiked(it) ? '<span class="like">あなた好み</span>' : ''}<span>予算 ${it.price}</span><span>徒歩 約${walk(it.dist)}分</span>${it.rating ? `<span>★${it.rating}</span>` : ''}${it.openNow === true ? '<span style="color:var(--fav);font-weight:700">営業中</span>' : it.openNow === false ? '<span>営業時間外</span>' : ''}${it.smoking === true ? '<span>喫煙可</span>' : it.smoking === false ? '<span>禁煙</span>' : ''}${it.hours ? `<span>${it.hours}</span>` : ''}${it.url ? `<a href="${it.url}" target="_blank" rel="noopener">詳細を見る</a>` : ''}</div>
+      <div class="meta">${isLiked(it) ? '<span class="like">あなた好み</span>' : ''}<span>予算 ${it.price}</span><span>徒歩 約${walk(it.dist)}分</span>${it.rating ? `<span>★${it.rating}</span>` : ''}${it.openNow === true ? '<span style="color:var(--fav);font-weight:700">営業中</span>' : it.openNow === false ? '<span>営業時間外</span>' : ''}${it.smoking === true ? '<span>喫煙可</span>' : it.smoking === false ? '<span>禁煙</span>' : ''}${it.hours ? `<span>${it.hours}</span>` : ''}<a href="#" class="more-link">詳細を見る</a></div>
     </div>
     <div class="foot">
       <button type="button" class="bfav" aria-label="お気に入りに登録（左スワイプ）">${ICON_HEART}お気に入り</button>
@@ -541,16 +599,118 @@ function cardEl(it) {
   c.querySelector('.genre').textContent = it.genre; c.querySelector('.ttl b').textContent = it.name; c.querySelector('.dtext').textContent = it.dish;
   c.querySelector('.bfav').onclick = () => fly(c, -1, () => act('fav', it.id));
   c.querySelector('.bdel').onclick = () => fly(c, 1, () => act('del', it.id));
-  c.querySelector('.img').onclick = () => { if (map) map.panTo({ lat: it.lat, lng: it.lng }); };
+  // 写真・店名・「詳細を見る」のタップで詳細シート（スワイプ中の誤タップは attachSwipe 側で抑止）
+  c.querySelector('.img').onclick = () => { if (!c.dataset.moved) openSheet(it, 'queue'); };
+  c.querySelector('.ttl b').onclick = () => { if (!c.dataset.moved) openSheet(it, 'queue'); };
+  c.querySelector('.more-link').onclick = (e) => { e.preventDefault(); openSheet(it, 'queue'); };
   attachSwipe(c, it.id);
   return c;
 }
+
+// ---------- 店舗詳細シート ----------
+let sheetItem = null, sheetCtx = 'queue';
+const el = (tag, cls, text) => { const e = document.createElement(tag); if (cls) e.className = cls; if (text != null) e.textContent = text; return e; };
+const ICON_ROUTE = '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 19h9a4 4 0 0 0 0-8H8a3 3 0 0 1 0-6h5"/><path d="M11 2l3 3-3 3"/></svg>';
+const ICON_PHONE = '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 4h4l2 5-2.5 1.5a11 11 0 0 0 5 5L15 13l5 2v4a2 2 0 0 1-2 2A16 16 0 0 1 3 6a2 2 0 0 1 2-2z"/></svg>';
+const ICON_LINK = '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 4h6v6M20 4l-9 9M18 14v5a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1V7a1 1 0 0 1 1-1h5"/></svg>';
+function routeURL(it) {
+  const u = new URL('https://www.google.com/maps/dir/?api=1'); u.searchParams.set('destination', it.lat + ',' + it.lng); u.searchParams.set('travelmode', 'walking');
+  if (it.placeId) u.searchParams.set('destination_place_id', it.placeId); return u.toString();
+}
+function openSheet(it, ctx) {
+  sheetItem = it; sheetCtx = ctx || 'queue'; renderSheet();
+  $('#sheet').classList.add('on'); $('#sheetBd').classList.add('on'); $('#sheetBody').scrollTop = 0;
+  if (map) map.panTo({ lat: it.lat, lng: it.lng });
+}
+function closeSheet() { $('#sheet').classList.remove('on'); $('#sheetBd').classList.remove('on'); sheetItem = null; }
+function renderSheet() {
+  const it = sheetItem, b = $('#sheetBody'), f = $('#sheetFoot'); b.innerHTML = ''; f.innerHTML = '';
+  // 写真ギャラリー
+  const photos = (it.photos && it.photos.length) ? it.photos : (it.photo ? [{ url: it.photo, by: '' }] : []);
+  if (photos.length) {
+    const g = el('div', 'gallery');
+    photos.forEach(p => { const fg = el('figure'); const im = el('img'); im.src = p.url; im.alt = it.name; im.loading = 'lazy'; fg.appendChild(im); if (p.by) fg.appendChild(el('figcaption', null, '写真: ' + p.by)); g.appendChild(fg); });
+    b.appendChild(g);
+  }
+  // 見出し
+  const head = el('div'); head.style.cssText = 'display:flex;flex-direction:column;gap:6px';
+  head.appendChild(el('h2', null, it.name));
+  const sub = el('div', 'sub2');
+  [it.genre, it.rating ? '★' + it.rating + (it.ratingCount ? '（' + it.ratingCount + '件）' : '') : '', '予算 ' + it.price, fmtDist(it.dist) + '・徒歩 約' + walk(it.dist) + '分',
+    it.openNow === true ? '営業中' : it.openNow === false ? '営業時間外' : '', it.smoking === true ? '喫煙可' : it.smoking === false ? '禁煙' : '', it.source].filter(Boolean).forEach(t => sub.appendChild(el('span', null, t)));
+  head.appendChild(sub); b.appendChild(head);
+  // 名物／おすすめ
+  const d = DISH[it.id];
+  const hl = el('div', 'hl');
+  if (d && d.dish) { hl.appendChild(el('span', 't', '名物の一皿')); hl.appendChild(el('span', 'd', d.dish)); if (d.reason) hl.appendChild(el('span', 'r', d.reason)); }
+  else { hl.appendChild(el('span', 't', it.dishLabel || 'おすすめ')); hl.appendChild(el('span', 'r', it.dish || '情報なし')); }
+  if (d && d.vibe) hl.appendChild(el('span', 'vibe', d.vibe));
+  b.appendChild(hl);
+  // 設備
+  if (it.amenities && it.amenities.length) { const a = el('div', 'amen'); it.amenities.forEach(t => a.appendChild(el('span', null, t))); b.appendChild(a); }
+  // 行動ボタン（経路・電話・サイト・元ページ）
+  const acts = el('div', 'acts');
+  const link = (href, html, text, cls) => { const a = el('a', cls); a.href = href; a.target = '_blank'; a.rel = 'noopener'; a.innerHTML = html; a.appendChild(document.createTextNode(text)); return a; };
+  acts.appendChild(link(routeURL(it), ICON_ROUTE, '経路（徒歩）', 'go'));
+  if (it.tel) { const a = link('tel:' + it.tel.replace(/[^\d+]/g, ''), ICON_PHONE, it.tel); a.removeAttribute('target'); acts.appendChild(a); }
+  if (it.site) acts.appendChild(link(it.site, ICON_LINK, '公式サイト'));
+  if (it.url) acts.appendChild(link(it.url, ICON_LINK, it.source === 'Google' ? 'Google マップ' : 'ホットペッパー'));
+  if (it.hpUrl && it.hpUrl !== it.url) acts.appendChild(link(it.hpUrl, ICON_LINK, 'ホットペッパーで予約'));
+  b.appendChild(acts);
+  // 営業時間（全曜日、今日を強調）
+  const hoursAll = it.hoursAll && it.hoursAll.length ? it.hoursAll : (it.hours ? [it.hours] : []);
+  if (hoursAll.length || it.hoursNote) {
+    const sec = el('div'); sec.appendChild(el('h3', null, '営業時間'));
+    const ul = el('ul', 'hours'); const today = (new Date().getDay() + 6) % 7;
+    hoursAll.forEach((line, i) => {
+      const m = String(line).match(/^([^:：]+)[:：]\s*(.*)$/); const li = el('li', hoursAll.length === 7 && i === today ? 'today' : '');
+      if (m) { li.appendChild(el('span', null, m[1])); li.appendChild(el('span', null, m[2])); } else li.appendChild(el('span', null, line));
+      ul.appendChild(li);
+    });
+    if (it.hoursNote) { const li = el('li'); li.appendChild(el('span', null, it.hoursNote)); ul.appendChild(li); }
+    sec.appendChild(ul); b.appendChild(sec);
+  }
+  // 住所・アクセス
+  if (it.address || it.access) {
+    const kv = el('div', 'kv');
+    if (it.address) { const r = el('div'); r.appendChild(el('b', null, '住所')); r.appendChild(el('span', null, it.address)); kv.appendChild(r); }
+    if (it.access) { const r = el('div'); r.appendChild(el('b', null, '交通')); r.appendChild(el('span', null, it.access)); kv.appendChild(r); }
+    b.appendChild(kv);
+  }
+  // 口コミ
+  if (it.reviews && it.reviews.length) {
+    const sec = el('div'); sec.appendChild(el('h3', null, '口コミ（Google）'));
+    const w = el('div', 'revs'); it.reviews.slice(0, 3).forEach(t => { const s = String(t).replace(/\s+/g, ' '); w.appendChild(el('p', null, s.length > 140 ? s.slice(0, 140) + '…' : s)); });
+    sec.appendChild(w); b.appendChild(sec);
+  }
+  // フッター（文脈で切替）
+  const btn = (cls, html, text, fn) => { const x = el('button', cls); x.type = 'button'; x.innerHTML = html; x.appendChild(document.createTextNode(text)); x.onclick = fn; return x; };
+  if (sheetCtx === 'queue') {
+    f.appendChild(btn('bfav', ICON_HEART, 'お気に入り', () => { closeSheet(); act('fav', it.id); }));
+    f.appendChild(btn('bdel', ICON_TRASH, '削除', () => { closeSheet(); act('del', it.id); }));
+  } else if (sheetCtx === 'fav') {
+    f.appendChild(btn('bdel', ICON_HEART, 'お気に入りを解除', () => { closeSheet(); S.favs = S.favs.filter(x => x.id !== it.id); save('favs', S.favs); rebuildQueue(); renderDeck(); renderLists(); toast('解除しました'); }));
+  } else {
+    f.appendChild(btn('bsolid', '', '復旧する', () => { closeSheet(); S.deleted = S.deleted.filter(x => x.id !== it.id); save('deleted', S.deleted); rebuildQueue(); renderDeck(); renderLists(); toast('復旧しました'); }));
+  }
+}
+$('#sheetClose').onclick = closeSheet; $('#sheetBd').onclick = closeSheet;
+document.addEventListener('keydown', e => { if (e.key === 'Escape' && sheetItem) closeSheet(); });
+// つまみを下にドラッグで閉じる
+(() => {
+  const sh = $('#sheet'), grip = $('#sheetGrip'); let y0 = 0, dy = 0, on = false;
+  grip.addEventListener('pointerdown', e => { if (e.target.closest('button')) return; on = true; y0 = e.clientY; dy = 0; sh.classList.add('drag'); grip.setPointerCapture(e.pointerId); });
+  grip.addEventListener('pointermove', e => { if (!on) return; dy = Math.max(0, e.clientY - y0); sh.style.transform = `translate(-50%,${dy}px)`; });
+  const end = () => { if (!on) return; on = false; sh.classList.remove('drag'); sh.style.transform = ''; if (dy > 90) closeSheet(); };
+  grip.addEventListener('pointerup', end); grip.addEventListener('pointercancel', end);
+})();
 function attachSwipe(c, id) {
   let x0 = 0, dx = 0, active = false;
   const fav = c.querySelector('.stamp.fav'), del = c.querySelector('.stamp.del');
-  c.addEventListener('pointerdown', e => { if (e.target.closest('a, button')) return; active = true; x0 = e.clientX; dx = 0; c.classList.add('drag'); c.setPointerCapture(e.pointerId); });
+  c.addEventListener('pointerdown', e => { if (e.target.closest('a, button')) return; active = true; x0 = e.clientX; dx = 0; delete c.dataset.moved; c.classList.add('drag'); c.setPointerCapture(e.pointerId); });
   c.addEventListener('pointermove', e => {
     if (!active) return; dx = e.clientX - x0;
+    if (Math.abs(dx) > 8) c.dataset.moved = '1'; // 動かしたら直後の click で詳細を開かない
     c.style.transform = `translateX(${dx}px) rotate(${dx / 18}deg)`;
     fav.style.opacity = Math.min(1, Math.max(0, -dx / 90)); del.style.opacity = Math.min(1, Math.max(0, dx / 90));
   });
@@ -584,13 +744,14 @@ function renderLists() {
     const w = document.createElement('div'); w.innerHTML = rowHTML(it, '<button class="ic" aria-label="お気に入りを解除"><svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor"><path d="M12 21s-7-4.5-9.5-9A5 5 0 0 1 12 6a5 5 0 0 1 9.5 6c-2.5 4.5-9.5 9-9.5 9z"/></svg></button>');
     w.querySelector('b').textContent = it.name; w.querySelector('.l1').textContent = it.genre + '・' + it.dish; w.querySelector('.l2').textContent = '予算 ' + it.price + '・' + fmtDist(it.dist) + '（徒歩約' + walk(it.dist) + '分）';
     w.querySelector('.ic').onclick = () => { S.favs = S.favs.filter(x => x.id !== it.id); save('favs', S.favs); rebuildQueue(); renderDeck(); renderLists(); };
-    w.querySelector('.th').onclick = () => { if (map) map.panTo({ lat: it.lat, lng: it.lng }); };
+    w.querySelector('.th').onclick = () => openSheet(it, 'fav'); w.querySelector('.tx').onclick = () => openSheet(it, 'fav');
     fl.appendChild(w.firstChild);
   });
   const tl = $('#trashList'); tl.innerHTML = '';
   S.deleted.forEach(it => {
     const w = document.createElement('div'); w.innerHTML = rowHTML(it, '<button class="rb">復旧</button>');
     w.querySelector('.th').style.opacity = .55; w.querySelector('b').textContent = it.name;
+    w.querySelector('.th').onclick = () => openSheet(it, 'trash'); w.querySelector('.tx').onclick = () => openSheet(it, 'trash');
     w.querySelector('.l1').textContent = it.genre + '・' + it.price + '・' + fmtDist(it.dist);
     const day = (t) => new Date(t).toLocaleDateString('ja-JP', { month: 'long', day: 'numeric' });
     w.querySelector('.l2').textContent = day(it.at) + ' 削除' + (it.reason && it.reason !== 'none' ? '・' + REASONS[it.reason].label : '') + (it.expires ? '・' + day(it.expires) + 'に自動復旧' : '');

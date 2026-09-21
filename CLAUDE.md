@@ -61,6 +61,7 @@ gourmet-app/
 - `askReason()` / `setReason()` / `restoreExpired()` … 削除直後の理由 4 択（高い／遠い／今の気分じゃない／興味なし、`REASONS`）。理由で学習の重み `DEL_W` が変わる。「今の気分じゃない」は 7 日で自動復旧（`expires`）
 - `geocodeQuery()` … 「場所を変更」の地名入力をジオコーディングして `setCenter()`。検索ボタン・Enter・「この場所で探す」（初期表示から書き換えたとき）の3経路から呼ばれ、成功したら `pushHistory()` で履歴に保存
 - `pushHistory()` / `renderHistory()` … 地名検索の履歴（`S.history`、`gourmet.history`、最大 `HISTORY_MAX`=8 件、新しい順・同名は統合）をダイアログにチップで表示。ダイアログを開くと入力欄に現在の場所名を入れて全選択
+- `openSheet(it, ctx)` / `renderSheet()` / `closeSheet()` … 店舗詳細のボトムシート。カードの写真・店名・「詳細を見る」、お気に入り／削除管理の行から開く。写真ギャラリー（`photos` 最大 6 枚、撮影者クレジット付き）、名物と根拠と雰囲気（`DISH`）、設備（`amenities`）、経路（Google マップ徒歩、`placeId` 付き）・電話・公式サイト・元ページ、営業時間の全曜日（`hoursAll`、今日を強調）、住所、口コミ 3 件。フッターは文脈（queue=登録／削除、fav=解除、trash=復旧）で切替。閉じるのは背景タップ・×・つまみを下にドラッグ・Esc。スワイプ中の誤タップは `dataset.moved` で抑止
 - `showView()` … タブ切替（探す／お気に入り／削除管理／設定）。「探す」は `#findScroll`（地図＋カード一覧＋ヒント）を1つのスクロール領域として持ち、ヘッダーとチップは固定。地図は `gestureHandling: 'cooperative'`（1本指=ページスクロール、2本指=地図操作）
 
 ### ジャンル → API マッピング
@@ -90,6 +91,7 @@ gourmet-app/
 | 営業時間 | regularOpeningHours.weekdayDescriptions[今日] | open |
 | 写真 | photos[0].getURI({maxWidth:800}) | photo.mobile.l |
 | 外部リンク | googleMapsURI | urls.pc |
+| 詳細画面 | formattedAddress / nationalPhoneNumber / websiteURI / isReservable / hasDineIn / hasTakeout / hasOutdoorSeating / photos（最大 6 枚）/ regularOpeningHours.weekdayDescriptions（全曜日） | address / access / open / close / private_room / card / parking / wifi / lunch / midnight / free_drink |
 | 営業中 | Place.isOpen()（regularOpeningHours + utcOffsetMinutes、businessStatus が OPERATIONAL 以外は false） | （項目なし → 不明） |
 | 喫煙 | （項目なし → ホットペッパー突き合わせで補完） | non_smoking（全面禁煙=不可／一部禁煙・禁煙席なし=可） |
 
@@ -114,7 +116,7 @@ gourmet-app/
 
 1. ~~実キーで動作確認~~（完了：正規化の修正は不要だった）
 2. ~~候補数の拡充~~（完了：並列検索＋重複除去＋おまかせの帯内シャッフル）
-3. 店舗詳細画面（写真ギャラリー・メニュー・営業時間全文・経路リンク）
+3. ~~店舗詳細画面~~（完了：ボトムシート。メニューは Places に無いので名物抽出で代替）
 4. プロジェクト分割：単一 HTML から Vite + TypeScript（または React）へ。`S` を store に、API 呼び出しを `src/api/google.ts` / `src/api/hotpepper.ts` に分離
 5. サーバー同期：favs / deleted をユーザー単位で保存（認証込み）。Google キーもサーバー側で発行・リファラ制限
 6. PWA 化（オフラインのお気に入り閲覧、ホーム画面追加）
